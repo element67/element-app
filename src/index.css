@@ -1,0 +1,184 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── DARK TERMINAL TOKENS ─── */
+:root {
+  --bg:           #0d0e0f;
+  --surface:      #141518;
+  --surface-high: #1c1e22;
+  --surface-mid:  #1a1c1f;
+  --surface-muted:#111214;
+  --border:       #2a2c31;
+  --border-mid:   #222428;
+  --ink:          #e8eaed;
+  --ink-2:        #9ca3af;
+  --subtle:       #6b7280;
+  --buy:          #3b82f6;
+  --buy-dim:      rgba(59,130,246,0.12);
+  --buy-glow:     rgba(59,130,246,0.25);
+  --sell:         #8b5cf6;
+  --sell-dim:     rgba(139,92,246,0.12);
+  --sell-glow:    rgba(139,92,246,0.25);
+  --green:        #22c55e;
+  --green-dim:    rgba(34,197,94,0.12);
+  --red:          #ef4444;
+  --red-dim:      rgba(239,68,68,0.12);
+  --accent:       #3b82f6;
+  --accent-dim:   rgba(59,130,246,0.10);
+  --accent-glow:  rgba(59,130,246,0.20);
+  --warn:         #f59e0b;
+
+  /* chart bar colors */
+  --bar-buy:      rgba(59,130,246,0.25);
+  --bar-sell:     rgba(139,92,246,0.20);
+}
+
+/* ─── LIGHT MODE ─── */
+.light {
+  --bg:           #f4f5f7;
+  --surface:      #ffffff;
+  --surface-high: #f0f1f3;
+  --surface-mid:  #f8f9fa;
+  --surface-muted:#ebebed;
+  --border:       #e2e4e8;
+  --border-mid:   #d1d5db;
+  --ink:          #111827;
+  --ink-2:        #374151;
+  --subtle:       #9ca3af;
+  --bar-buy:      rgba(59,130,246,0.18);
+  --bar-sell:     rgba(139,92,246,0.15);
+}
+
+/* ─── BASE ─── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── MONOSPACE ─── */
+.mono {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ─── SCROLLBARS ─── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--subtle); }
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+/* ─── PRICE FLASH ─── */
+@keyframes flash-up {
+  0%   { background: rgba(34,197,94,0.25); }
+  100% { background: transparent; }
+}
+@keyframes flash-down {
+  0%   { background: rgba(239,68,68,0.25); }
+  100% { background: transparent; }
+}
+.flash-up   { animation: flash-up   600ms ease-out; }
+.flash-down { animation: flash-down 600ms ease-out; }
+
+/* ─── DEPTH BARS ─── */
+.depth-bar-buy {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  background: var(--bar-buy);
+  pointer-events: none;
+}
+.depth-bar-sell {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  background: var(--bar-sell);
+  pointer-events: none;
+}
+
+/* ─── RANGE SLIDER ─── */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  cursor: pointer;
+}
+
+/* ─── SKELETON ─── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-high) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 3px;
+}
+
+/* ─── PAGE TRANSITIONS ─── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: fadeIn 180ms ease-out;
+}
+
+/* ─── REDUCED MOTION ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── MOBILE SAFE AREA ─── */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-top    { padding-top:    env(safe-area-inset-top); }
+}
+
+/* ─── UTILITY ─── */
+.text-buy    { color: var(--buy); }
+.text-sell   { color: var(--sell); }
+.text-green  { color: var(--green); }
+.text-red    { color: var(--red); }
+.text-subtle { color: var(--subtle); }
+.text-ink2   { color: var(--ink-2); }
+.bg-surface  { background: var(--surface); }
+.border-std  { border: 1px solid var(--border); }
