@@ -248,7 +248,7 @@ export function getProvider(id: BridgeProviderId): ProviderMeta {
 
 // ─── Bridge transaction history store ────────────────────────────────────────
 
-const TX_STORAGE_KEY = "financex_bridge_history";
+const TX_STORAGE_KEY = "rushpay_bridge_history";
 const MAX_HISTORY = 50;
 
 export function saveBridgeTx(tx: BridgeTx): void {

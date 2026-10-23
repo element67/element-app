@@ -17,16 +17,27 @@ const SECTIONS = [
 ] as const;
 type Section = typeof SECTIONS[number]["key"];
 
+type FontSize = "small" | "default" | "large";
+const FONT_SIZE_MAP: Record<FontSize, string> = { small: "14px", default: "16px", large: "18px" };
+
 function getTheme(): "dark" | "light" {
-  return (localStorage.getItem("app-theme") as "dark" | "light") ?? "dark";
+  return (localStorage.getItem("app-theme") as "dark" | "light") ?? "light";
 }
 function applyTheme(t: "dark" | "light") {
   localStorage.setItem("app-theme", t);
   document.documentElement.setAttribute("data-theme", t);
 }
+function getFontSize(): FontSize {
+  return (localStorage.getItem("app-font-size") as FontSize) ?? "default";
+}
+function applyFontSize(s: FontSize) {
+  localStorage.setItem("app-font-size", s);
+  document.documentElement.style.fontSize = FONT_SIZE_MAP[s];
+}
 
 export function SettingsModal({ onClose }: Props) {
   const [theme, setThemeState] = useState<"dark"|"light">(getTheme);
+  const [fontSize, setFontSizeState] = useState<FontSize>(getFontSize);
   const [section, setSection] = useState<Section>("appearance");
 
   // DeFi prefs
@@ -48,6 +59,10 @@ export function SettingsModal({ onClose }: Props) {
   function setTheme(t: "dark"|"light") {
     setThemeState(t);
     applyTheme(t);
+  }
+  function setFontSize(s: FontSize) {
+    setFontSizeState(s);
+    applyFontSize(s);
   }
 
   function save() {
@@ -123,10 +138,15 @@ export function SettingsModal({ onClose }: Props) {
                 <div>
                   <label className="text-[11px] uppercase tracking-wide block mb-2" style={{ color: "var(--subtle)" }}>Font Size</label>
                   <div className="flex gap-2">
-                    {["Small", "Default", "Large"].map((s) => (
-                      <button key={s} className="h-8 px-3 rounded border text-[11px] transition-colors"
-                        style={{ borderColor: "var(--border)", color: "var(--subtle)" }}>
-                        {s}
+                    {(["small", "default", "large"] as FontSize[]).map((s) => (
+                      <button key={s} onClick={() => setFontSize(s)}
+                        className="h-8 px-3 rounded border text-[11px] transition-colors capitalize"
+                        style={{
+                          borderColor: fontSize === s ? "var(--accent)" : "var(--border)",
+                          background: fontSize === s ? "rgba(37,99,235,0.1)" : "transparent",
+                          color: fontSize === s ? "var(--accent)" : "var(--subtle)",
+                        }}>
+                        {s.charAt(0).toUpperCase() + s.slice(1)}
                       </button>
                     ))}
                   </div>

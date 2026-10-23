@@ -21,6 +21,7 @@ export interface CryptoAsset {
   coingeckoId: string;     // e.g. "bitcoin" — canonical CoinGecko slug
   coingeckoImageId: number; // numeric image id from CoinGecko CDN
   coingeckoImageFile: string; // filename on CDN
+  logoUrl?: string;        // override URL — used when CoinGecko CDN blocks the file
   color: string;           // brand color
   networks: string[];      // chain ids where this token exists
   contractAddresses?: Record<string, string>; // network → contract address
@@ -75,37 +76,40 @@ export const CRYPTO_ASSETS: Record<string, CryptoAsset> = {
   USDC: { symbol:"USDC", name:"USD Coin",         coingeckoId:"usd-coin",          coingeckoImageId:6319,  coingeckoImageFile:"USD_Coin_icon.png", color:"#2775ca", networks:["ethereum","bsc","solana","polygon","arbitrum","optimism","base","avalanche","arc"] },
   DOGE: { symbol:"DOGE", name:"Dogecoin",         coingeckoId:"dogecoin",          coingeckoImageId:5,     coingeckoImageFile:"dogecoin.png",      color:"#c2a633", networks:["dogecoin"] },
   ADA:  { symbol:"ADA",  name:"Cardano",          coingeckoId:"cardano",           coingeckoImageId:975,   coingeckoImageFile:"cardano.png",       color:"#0d1e2d", networks:["cardano"] },
-  AVAX: { symbol:"AVAX", name:"Avalanche",        coingeckoId:"avalanche-2",       coingeckoImageId:12559, coingeckoImageFile:"avalanche-avax-logo.png", color:"#e84142", networks:["avalanche","ethereum"] },
+  AVAX: { symbol:"AVAX", name:"Avalanche",        coingeckoId:"avalanche-2",       coingeckoImageId:12559, coingeckoImageFile:"avalanche-avax-logo.png", logoUrl:"https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/avalanchec/info/logo.png", color:"#e84142", networks:["avalanche","ethereum"] },
   LINK: { symbol:"LINK", name:"Chainlink",        coingeckoId:"chainlink",         coingeckoImageId:877,   coingeckoImageFile:"chainlink-new-logo.png", color:"#375bd2", networks:["ethereum","bsc","polygon","arbitrum","avalanche"] },
   DOT:  { symbol:"DOT",  name:"Polkadot",         coingeckoId:"polkadot",          coingeckoImageId:12171, coingeckoImageFile:"polkadot.png",      color:"#e6007a", networks:["polkadot"] },
   LTC:  { symbol:"LTC",  name:"Litecoin",         coingeckoId:"litecoin",          coingeckoImageId:2,     coingeckoImageFile:"litecoin.png",      color:"#bfbbbb", networks:["litecoin"] },
-  BCH:  { symbol:"BCH",  name:"Bitcoin Cash",     coingeckoId:"bitcoin-cash",      coingeckoImageId:780,   coingeckoImageFile:"bitcoin-cash.png",  color:"#8dc351", networks:["bitcoin-cash"] },
-  SUI:  { symbol:"SUI",  name:"Sui",              coingeckoId:"sui",               coingeckoImageId:26375, coingeckoImageFile:"sui_asset.png",     color:"#4da2ff", networks:["sui"] },
+  BCH:  { symbol:"BCH",  name:"Bitcoin Cash",     coingeckoId:"bitcoin-cash",      coingeckoImageId:780,   coingeckoImageFile:"bitcoin-cash.png",  logoUrl:"https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/bitcoincash/info/logo.png", color:"#8dc351", networks:["bitcoin-cash"] },
+  SUI:  { symbol:"SUI",  name:"Sui",              coingeckoId:"sui",               coingeckoImageId:26375, coingeckoImageFile:"sui_asset.png",     logoUrl:"https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/sui/info/logo.png", color:"#4da2ff", networks:["sui"] },
   TON:  { symbol:"TON",  name:"Toncoin",          coingeckoId:"the-open-network",  coingeckoImageId:17980, coingeckoImageFile:"ton_symbol.png",    color:"#0088cc", networks:["ton"] },
   NEAR: { symbol:"NEAR", name:"NEAR Protocol",    coingeckoId:"near",              coingeckoImageId:10365, coingeckoImageFile:"near.png",          color:"#00c08b", networks:["near"] },
   APT:  { symbol:"APT",  name:"Aptos",            coingeckoId:"aptos",             coingeckoImageId:26455, coingeckoImageFile:"aptos_round.png",   color:"#00b4d8", networks:["aptos"] },
-  ARB:  { symbol:"ARB",  name:"Arbitrum",         coingeckoId:"arbitrum",          coingeckoImageId:16547, coingeckoImageFile:"photo_2023-03-29_21.47.00.jpeg", color:"#12aaff", networks:["arbitrum","ethereum"] },
-  OP:   { symbol:"OP",   name:"Optimism",         coingeckoId:"optimism",          coingeckoImageId:25244, coingeckoImageFile:"optimism.png",      color:"#ff0420", networks:["optimism","ethereum"] },
-  INJ:  { symbol:"INJ",  name:"Injective",        coingeckoId:"injective-protocol",coingeckoImageId:7226,  coingeckoImageFile:"injective-protocol-inj-logo.png", color:"#00f2fe", networks:["injective","ethereum"] },
-  UNI:  { symbol:"UNI",  name:"Uniswap",          coingeckoId:"uniswap",           coingeckoImageId:12504, coingeckoImageFile:"uniswap-uni-logo.png", color:"#ff007a", networks:["ethereum","arbitrum","optimism","base","polygon"] },
-  AAVE: { symbol:"AAVE", name:"Aave",             coingeckoId:"aave",              coingeckoImageId:12645, coingeckoImageFile:"aave-logo.png",     color:"#b6509e", networks:["ethereum","polygon","arbitrum","optimism","base","avalanche"] },
-  PEPE: { symbol:"PEPE", name:"Pepe",             coingeckoId:"pepe",              coingeckoImageId:29850, coingeckoImageFile:"pepe-token.png",    color:"#4caf50", networks:["ethereum"] },
+  ARB:  { symbol:"ARB",  name:"Arbitrum",         coingeckoId:"arbitrum",          coingeckoImageId:16547, coingeckoImageFile:"photo_2023-03-29_21.47.00.jpeg", logoUrl:"https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/arbitrum/info/logo.png", color:"#12aaff", networks:["arbitrum","ethereum"] },
+  ARC:  { symbol:"ARC",  name:"Arc",              coingeckoId:"usd-coin",          coingeckoImageId:6319,  coingeckoImageFile:"USD_Coin_icon.png",  color:"#2775ca", networks:["arc"] },
+  OP:   { symbol:"OP",   name:"Optimism",         coingeckoId:"optimism",          coingeckoImageId:25244, coingeckoImageFile:"optimism.png",      logoUrl:"https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/optimism/info/logo.png", color:"#ff0420", networks:["optimism","ethereum"] },
+  INJ:  { symbol:"INJ",  name:"Injective",        coingeckoId:"injective-protocol",coingeckoImageId:7226,  coingeckoImageFile:"injective-protocol-inj-logo.png", logoUrl:"https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xe28b3B32B6c345A34Ff64674606124Dd5Aceca30/logo.png", color:"#00f2fe", networks:["injective","ethereum"] },
+  UNI:  { symbol:"UNI",  name:"Uniswap",          coingeckoId:"uniswap",           coingeckoImageId:12504, coingeckoImageFile:"uniswap-uni-logo.png", logoUrl:"https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984/logo.png", color:"#ff007a", networks:["ethereum","arbitrum","optimism","base","polygon"] },
+  AAVE: { symbol:"AAVE", name:"Aave",             coingeckoId:"aave",              coingeckoImageId:12645, coingeckoImageFile:"aave-logo.png",     logoUrl:"https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9/logo.png", color:"#b6509e", networks:["ethereum","polygon","arbitrum","optimism","base","avalanche"] },
+  PEPE: { symbol:"PEPE", name:"Pepe",             coingeckoId:"pepe",              coingeckoImageId:29850, coingeckoImageFile:"pepe-token.png",    logoUrl:"https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0x6982508145454Ce325dDbE47a25d4ec3d2311933/logo.png", color:"#4caf50", networks:["ethereum"] },
   TRX:  { symbol:"TRX",  name:"TRON",             coingeckoId:"tron",              coingeckoImageId:1094,  coingeckoImageFile:"tron-logo.png",     color:"#eb0029", networks:["tron"] },
   MATIC:{ symbol:"MATIC",name:"Polygon",          coingeckoId:"matic-network",     coingeckoImageId:4713,  coingeckoImageFile:"polygon.png",       color:"#8247e5", networks:["polygon","ethereum"] },
-  DAI:  { symbol:"DAI",  name:"Dai",              coingeckoId:"dai",               coingeckoImageId:9956,  coingeckoImageFile:"dai-logo.png",      color:"#f5ac37", networks:["ethereum","polygon","arbitrum","optimism","base","avalanche"] },
+  DAI:  { symbol:"DAI",  name:"Dai",              coingeckoId:"dai",               coingeckoImageId:9956,  coingeckoImageFile:"dai-logo.png",      logoUrl:"https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0x6B175474E89094C44Da98b954EedeAC495271d0F/logo.png", color:"#f5ac37", networks:["ethereum","polygon","arbitrum","optimism","base","avalanche"] },
 };
 
-/** Get CoinGecko small image URL for a crypto symbol */
+/** Get logo URL for a crypto symbol — uses override if present, else CoinGecko CDN */
 export function cryptoLogoUrl(symbol: string): string {
   const a = CRYPTO_ASSETS[symbol.toUpperCase()];
   if (!a) return "";
+  if (a.logoUrl) return a.logoUrl;
   return `https://assets.coingecko.com/coins/images/${a.coingeckoImageId}/small/${a.coingeckoImageFile}`;
 }
 
-/** Get CoinGecko large image URL (128px) */
+/** Get large logo URL (128px) — uses override if present, else CoinGecko large CDN */
 export function cryptoLogoLargeUrl(symbol: string): string {
   const a = CRYPTO_ASSETS[symbol.toUpperCase()];
   if (!a) return "";
+  if (a.logoUrl) return a.logoUrl;
   return `https://assets.coingecko.com/coins/images/${a.coingeckoImageId}/large/${a.coingeckoImageFile}`;
 }
 
@@ -124,7 +128,8 @@ export const CHAINS: Record<string, ChainAsset> = {
   solana:    { id:"solana",    name:"Solana",                         coingeckoId:"solana",         coingeckoImageId:4128,  coingeckoImageFile:"solana.png",            color:"#9945ff", nativeCurrency:"SOL",   explorerBase:"https://solscan.io" },
   bitcoin:   { id:"bitcoin",   name:"Bitcoin",                        coingeckoId:"bitcoin",        coingeckoImageId:1,     coingeckoImageFile:"bitcoin.png",           color:"#f7931a", nativeCurrency:"BTC",   explorerBase:"https://mempool.space" },
   tron:      { id:"tron",      name:"TRON",                           coingeckoId:"tron",           coingeckoImageId:1094,  coingeckoImageFile:"tron-logo.png",         color:"#eb0029", nativeCurrency:"TRX",   explorerBase:"https://tronscan.org" },
-  arc:       { id:"arc",       name:"Arc Testnet",    chainId:1116,  coingeckoId:"usd-coin",       coingeckoImageId:6319,  coingeckoImageFile:"USD_Coin_icon.png",     color:"#2775ca", nativeCurrency:"USDC",  explorerBase:"https://explorer.arc.io" },
+  arc:       { id:"arc",       name:"Arc",            chainId:5042,  coingeckoId:"usd-coin",       coingeckoImageId:6319,  coingeckoImageFile:"USD_Coin_icon.png",     color:"#2775ca", nativeCurrency:"USDC",  explorerBase:"https://explorer.arc.io" },
+  "arc testnet": { id:"arc testnet", name:"Arc Testnet", chainId:5042002, coingeckoId:"usd-coin", coingeckoImageId:6319, coingeckoImageFile:"USD_Coin_icon.png",    color:"#2775ca", nativeCurrency:"USDC",  explorerBase:"https://explorer.testnet.arc.io" },
 };
 
 export function chainLogoUrl(chainId: string): string {

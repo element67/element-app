@@ -60,6 +60,13 @@ const ADAPTERS: Record<string, ChainAdapter> = {
     prefixes: ["0x"], addrLen: 42, tokensShareAddress: true,
   },
   Arc: {
+    name: "Arc", family: "evm", nativeTicker: "USDC",
+    typicalFeeUsd: 0.001, explorerBase: "https://explorer.arc.io",
+    addressExplorer: "https://explorer.arc.io/address/{addr}",
+    addressPlaceholder: "0x…", addressHint: "42-char hex address starting with 0x",
+    prefixes: ["0x"], addrLen: 42, tokensShareAddress: true,
+  },
+  "Arc Testnet": {
     name: "Arc Testnet", family: "evm", nativeTicker: "USDC",
     typicalFeeUsd: 0.001, explorerBase: "https://explorer.testnet.arc.io",
     addressExplorer: "https://explorer.testnet.arc.io/address/{addr}",

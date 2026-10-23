@@ -12,6 +12,13 @@
 
 import './tracing'
 import './console-capture'
+import { installLiquidGlass } from './lib/liquidGlass'
+installLiquidGlass()
+
+// Restore persisted font size
+const savedFontSize = localStorage.getItem("app-font-size")
+if (savedFontSize === "small") document.documentElement.style.fontSize = "14px"
+if (savedFontSize === "large") document.documentElement.style.fontSize = "18px"
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -21,6 +28,7 @@ import { ConnectKitProvider } from 'connectkit'
 import { Toaster } from 'sonner'
 import { config } from './config'
 import App from './App'
+import { NativeWalletProvider } from './context/NativeWalletContext'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -71,9 +79,11 @@ createRoot(document.getElementById('root')!).render(
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <ConnectKitProvider>
-          <App />
-          <StudioWatermark />
-          <Toaster position="top-center" />
+          <NativeWalletProvider>
+            <App />
+            <StudioWatermark />
+            <Toaster position="top-center" />
+          </NativeWalletProvider>
         </ConnectKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

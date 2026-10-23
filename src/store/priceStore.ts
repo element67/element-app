@@ -76,44 +76,62 @@ interface PriceState {
   startFeed: () => () => void;
 }
 
-const PROXY_A = "https://corsproxy.io/?url=";
-const PROXY_B = "https://api.allorigins.win/raw?url=";
 const BASE_URL = "https://api.binance.com/api/v3/ticker/24hr";
 
+// In-flight dedup: if a fetch is already running, return the same promise
+let _inflightFetch: Promise<Record<string, Ticker>> | null = null;
+
 async function fetchTickers(): Promise<Record<string, Ticker>> {
+  if (_inflightFetch) return _inflightFetch;
   const symbols = Object.keys(MARKET_MAP);
   const qs = `symbols=${encodeURIComponent(JSON.stringify(symbols))}`;
-  const url = `${BASE_URL}?${qs}`;
-  let raw: Response | null = null;
-  for (const proxy of ["", PROXY_A, PROXY_B]) {
+  const directUrl = `${BASE_URL}?${qs}`;
+
+  _inflightFetch = (async () => {
     try {
-      raw = await fetch(proxy ? proxy + encodeURIComponent(url) : url, { signal: AbortSignal.timeout(6000) });
-      if (raw.ok) break;
-    } catch { raw = null; }
-  }
-  if (!raw?.ok) throw new Error("price fetch failed");
-  interface BinanceTicker24 {
-    symbol: string; lastPrice: string; priceChange: string; priceChangePercent: string;
-    highPrice: string; lowPrice: string; volume: string; quoteVolume: string;
-  }
-  const data = await raw.json() as BinanceTicker24[];
-  const out: Record<string, Ticker> = {};
-  for (const row of data) {
-    const key = MARKET_MAP[row.symbol];
-    if (!key) continue;
-    out[key] = {
-      symbol:         key,
-      lastPrice:      parseFloat(row.lastPrice),
-      priceChange:    parseFloat(row.priceChange),
-      priceChangePct: parseFloat(row.priceChangePercent),
-      high24h:        parseFloat(row.highPrice),
-      low24h:         parseFloat(row.lowPrice),
-      volume24h:      parseFloat(row.volume),
-      quoteVolume:    parseFloat(row.quoteVolume),
-      updatedAt:      Date.now(),
-    };
-  }
-  return out;
+      // Try server-side proxy first (avoids CORS + Binance geo-blocking)
+      let raw: Response | null = null;
+      try {
+        raw = await fetch("/api/prices", { signal: AbortSignal.timeout(8000) });
+        if (!raw.ok) raw = null;
+      } catch { raw = null; }
+
+      // Fall back to direct Binance if proxy unavailable
+      if (!raw) {
+        try {
+          raw = await fetch(directUrl, { signal: AbortSignal.timeout(6000) });
+          if (!raw.ok) raw = null;
+        } catch { raw = null; }
+      }
+
+      if (!raw?.ok) throw new Error("price fetch failed");
+      interface BinanceTicker24 {
+        symbol: string; lastPrice: string; priceChange: string; priceChangePercent: string;
+        highPrice: string; lowPrice: string; volume: string; quoteVolume: string;
+      }
+      const data = await raw.json() as BinanceTicker24[];
+      const out: Record<string, Ticker> = {};
+      for (const row of data) {
+        const key = MARKET_MAP[row.symbol];
+        if (!key) continue;
+        out[key] = {
+          symbol:         key,
+          lastPrice:      parseFloat(row.lastPrice),
+          priceChange:    parseFloat(row.priceChange),
+          priceChangePct: parseFloat(row.priceChangePercent),
+          high24h:        parseFloat(row.highPrice),
+          low24h:         parseFloat(row.lowPrice),
+          volume24h:      parseFloat(row.volume),
+          quoteVolume:    parseFloat(row.quoteVolume),
+          updatedAt:      Date.now(),
+        };
+      }
+      return out;
+    } finally {
+      _inflightFetch = null;
+    }
+  })();
+  return _inflightFetch;
 }
 
 // Merge new tickers, recording previous prices for flash animations
@@ -138,9 +156,27 @@ export const usePriceStore = create<PriceState>((set, _get) => ({
     let alive = true;
     let ws: WebSocket | null = null;
 
-    // ── Binance mini-ticker WebSocket (real-time, ~1s updates) ────────────────
+    // ── Binance mini-ticker WebSocket (real-time, throttled to 1 batch/2s) ──────
+    // Raw WS fires ~1msg/s × 22 symbols = 22 Zustand updates/s, which re-renders
+    // every price-watching component 22×/s. We buffer all ticks and flush as a
+    // single merged state update every 2s instead.
     function startWs() {
       const streams = Object.keys(MARKET_MAP).map(s => `${s.toLowerCase()}@miniTicker`).join("/");
+      // Pending batch: accumulate ticks, flush every 2s
+      const pending: Record<string, Ticker> = {};
+      let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+      function scheduledFlush() {
+        flushTimer = null;
+        if (!alive || Object.keys(pending).length === 0) return;
+        const batch = { ...pending };
+        // Clear pending before set() to avoid holding stale refs
+        for (const k of Object.keys(pending)) delete pending[k];
+        set(prev => applyTickers(prev, batch));
+        // Schedule next flush
+        flushTimer = setTimeout(scheduledFlush, 2000);
+      }
+
       try {
         ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
         ws.onmessage = (evt: MessageEvent) => {
@@ -153,24 +189,27 @@ export const usePriceStore = create<PriceState>((set, _get) => ({
             if (!key) return;
             const lastPrice = parseFloat(d.c);
             const open      = parseFloat(d.o);
-            const incoming: Record<string, Ticker> = {
-              [key]: {
-                symbol:         key,
-                lastPrice,
-                priceChange:    lastPrice - open,
-                priceChangePct: open > 0 ? ((lastPrice - open) / open) * 100 : 0,
-                high24h:        parseFloat(d.h),
-                low24h:         parseFloat(d.l),
-                volume24h:      parseFloat(d.v),
-                quoteVolume:    parseFloat(d.q),
-                updatedAt:      Date.now(),
-              },
+            // Accumulate into pending batch — no setState here
+            pending[key] = {
+              symbol:         key,
+              lastPrice,
+              priceChange:    lastPrice - open,
+              priceChangePct: open > 0 ? ((lastPrice - open) / open) * 100 : 0,
+              high24h:        parseFloat(d.h),
+              low24h:         parseFloat(d.l),
+              volume24h:      parseFloat(d.v),
+              quoteVolume:    parseFloat(d.q),
+              updatedAt:      Date.now(),
             };
-            set(prev => applyTickers(prev, incoming));
+            // Start flush timer on first message if not already running
+            if (!flushTimer) flushTimer = setTimeout(scheduledFlush, 2000);
           } catch { /* ignore parse errors */ }
         };
         ws.onerror = () => { ws?.close(); };
-        ws.onclose = () => { if (alive) setTimeout(startWs, 5000); }; // reconnect
+        ws.onclose = () => {
+          if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+          if (alive) setTimeout(startWs, 5000);
+        };
       } catch { /* WS not available */ }
     }
 
@@ -185,7 +224,8 @@ export const usePriceStore = create<PriceState>((set, _get) => ({
 
     startWs();
     void tick(); // immediate seed
-    const id = setInterval(() => { void tick(); }, 10_000);
+    // 60s REST poll matches the server-side Binance cache TTL — no point polling faster
+    const id = setInterval(() => { void tick(); }, 60_000);
 
     return () => {
       alive = false;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAccount } from "wagmi";
+import { useSharedWallet as useNativeWallet } from "@/context/NativeWalletContext";
 import { Copy, Check, Users, DollarSign, TrendingUp } from "lucide-react";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -33,11 +33,12 @@ const REFERRED = [
 ];
 
 export function ReferralsPage() {
-  const { isConnected, address } = useAccount();
+  const nw = useNativeWallet();
+  const address = nw.addresses?.["Ethereum"];
   const [copied, setCopied] = useState(false);
 
-  const code = address ? `PERPX-${address.slice(2, 8).toUpperCase()}` : "PERPX-DEMO01";
-  const refLink = `https://perpx.trade?ref=${code}`;
+  const code = address ? `FX-${address.slice(2, 8).toUpperCase()}` : "FX-DEMO01";
+  const refLink = `https://rushpay.app?ref=${code}`;
 
   function copyLink() {
     void navigator.clipboard.writeText(refLink);
@@ -52,7 +53,7 @@ export function ReferralsPage() {
     <div className="p-4 space-y-4 max-w-3xl mx-auto" style={{ minHeight: "calc(100vh - 44px)", background: "var(--bg)" }}>
       <div>
         <div className="text-lg font-bold" style={{ color: "var(--ink)" }}>Referrals</div>
-        <div className="text-xs mt-0.5" style={{ color: "var(--subtle)" }}>Earn rebates when friends trade on PERPX</div>
+        <div className="text-xs mt-0.5" style={{ color: "var(--subtle)" }}>Earn rebates when friends use RushPay</div>
       </div>
 
       {/* Stats */}
@@ -139,8 +140,8 @@ export function ReferralsPage() {
 
       {/* Referred traders */}
       <Section title={`Referred Traders (${REFERRED.length})`}>
-        {!isConnected ? (
-          <div className="text-center text-xs py-3" style={{ color: "var(--subtle)" }}>Connect wallet to see your referrals</div>
+        {REFERRED.length === 0 ? (
+          <div className="text-center text-xs py-3" style={{ color: "var(--subtle)" }}>No referrals yet — share your link to get started</div>
         ) : (
           <table className="w-full text-xs">
             <thead>

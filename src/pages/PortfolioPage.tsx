@@ -2,9 +2,9 @@ import { useMemo } from "react";
 import { useWalletStore } from "@/store/walletStore";
 import { usePriceStore } from "@/store/priceStore";
 import { useFxDisplay } from "@/hooks/useFxDisplay";
-import { useAccount } from "wagmi";
-import { Activity, TrendingUp, TrendingDown, ExternalLink } from "lucide-react";
-import { ConnectKitButton } from "connectkit";
+import { useSharedWallet as useNativeWallet } from "@/context/NativeWalletContext";
+import { Activity, TrendingUp, TrendingDown } from "lucide-react";
+import { CryptoIcon } from "@/components/AssetIcons";
 
 function fmt(n: number, dec = 2) {
   return n.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
@@ -30,7 +30,8 @@ export function PortfolioPage() {
   const totalChange24h = useWalletStore(s => s.totalChange24h);
   const txHistory     = useWalletStore(s => s.txHistory);
   const tickers       = usePriceStore(s => s.tickers);
-  const { isConnected, address } = useAccount();
+  const nw = useNativeWallet();
+  const nativeAddress = nw.addresses?.["Ethereum"];
   const fx = useFxDisplay();
 
   // Build enriched asset list with live prices
@@ -71,26 +72,14 @@ export function PortfolioPage() {
       {/* Header */}
       <div>
         <div className="text-lg font-bold" style={{ color: "var(--ink)" }}>Portfolio</div>
-        {address && (
+        {nativeAddress && (
           <div className="text-xs mono mt-0.5" style={{ color: "var(--subtle)" }}>
-            {address.slice(0, 6)}…{address.slice(-4)}
+            {nativeAddress.slice(0, 6)}…{nativeAddress.slice(-4)}
           </div>
         )}
       </div>
 
-      {/* Optional: link external wallet for onchain holdings */}
-      {!isConnected && (
-        <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-xs"
-          style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.2)" }}>
-          <div className="flex items-center gap-2" style={{ color: "var(--ink-dim)" }}>
-            <ExternalLink size={13} style={{ color: "#60a5fa", flexShrink: 0 }} />
-            Connect an external wallet to include onchain holdings
-          </div>
-          <div style={{ transform: "scale(0.8)", transformOrigin: "right center", flexShrink: 0 }}>
-            <ConnectKitButton />
-          </div>
-        </div>
-      )}
+
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -133,10 +122,7 @@ export function PortfolioPage() {
                   <tr key={a.symbol} style={{ borderTop: "1px solid var(--border)" }}>
                     <td className="py-1.5 pr-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold"
-                          style={{ background: `${a.color}22`, color: a.color }}>
-                          {a.symbol.slice(0,2)}
-                        </div>
+                        <CryptoIcon symbol={a.symbol} size={20} />
                         <span className="font-semibold" style={{ color: "var(--ink)" }}>{a.symbol}</span>
                       </div>
                     </td>
@@ -194,7 +180,7 @@ export function PortfolioPage() {
       {/* Info note */}
       <div className="text-xs px-3 py-2 rounded" style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--subtle)" }}>
         <Activity size={10} style={{ display: "inline", marginRight: 4 }} />
-        Balances shown are from your built-in wallet. Connect your external wallet to include on-chain holdings.
+        Balances shown are from your built-in RushPay wallet. Use the Wallet page to deposit or send crypto.
       </div>
     </div>
   );

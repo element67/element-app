@@ -30,10 +30,10 @@ interface Props {
 
 // Demo virtual account details (production: Flutterwave createVirtualAccount)
 const DEMO_VA: Record<string, { accountNumber: string; bankName: string; accountName: string }> = {
-  NGN: { accountNumber: "0123456789", bankName: "Wema Bank (Flutterwave)", accountName: "FinanceX / Your Name" },
-  GHS: { accountNumber: "GH-00-12345678", bankName: "Ecobank Ghana (Flutterwave)", accountName: "FinanceX / Your Name" },
-  KES: { accountNumber: "254700000001", bankName: "M-Pesa (Safaricom)", accountName: "FinanceX Agent" },
-  ZAR: { accountNumber: "9876543210", bankName: "FNB (Flutterwave)", accountName: "FinanceX / Your Name" },
+  NGN: { accountNumber: "0123456789", bankName: "Wema Bank (Flutterwave)", accountName: "RushPay / Your Name" },
+  GHS: { accountNumber: "GH-00-12345678", bankName: "Ecobank Ghana (Flutterwave)", accountName: "RushPay / Your Name" },
+  KES: { accountNumber: "254700000001", bankName: "M-Pesa (Safaricom)", accountName: "RushPay Agent" },
+  ZAR: { accountNumber: "9876543210", bankName: "FNB (Flutterwave)", accountName: "RushPay / Your Name" },
 };
 
 type Step = "country" | "amount" | "pay" | "pending" | "confirmed";
@@ -181,7 +181,7 @@ export function BankDepositModal({ defaultCurrency, onClose }: Props) {
                   <div>
                     <div className="text-[10px] font-semibold" style={{ color: "#fbbf24" }}>Integration coming soon</div>
                     <div className="text-[10px] mt-0.5" style={{ color: "var(--subtle)" }}>
-                      {provider?.name ?? "Local bank"} deposits via FinanceX require API configuration.
+                      {provider?.name ?? "Local bank"} deposits via RushPay require API configuration.
                       This demo flow shows the UX — real funds require credentials.
                       {" "}
                       <a href="https://flutterwave.com/ng/developers" target="_blank" rel="noopener noreferrer"
@@ -287,7 +287,7 @@ export function BankDepositModal({ defaultCurrency, onClose }: Props) {
                 style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)" }}>
                 <Info size={13} className="shrink-0 mt-0.5" style={{ color: "#60a5fa" }} />
                 <div className="text-[10px]" style={{ color: "var(--subtle)" }}>
-                  This is a demo flow. In production, FinanceX verifies your payment
+                  This is a demo flow. In production, RushPay verifies your payment
                   via a provider webhook before crediting your balance.
                   Never send real funds to these demo account numbers.
                 </div>

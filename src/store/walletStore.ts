@@ -100,21 +100,35 @@ export interface WalletState {
   markAlertsRead: () => void;
   /** Low-level tx append — use credit/debit/swap when possible */
   addTx: (tx: Omit<TxRecord, "id" | "createdAt">) => string;
+
+  /** Set the real on-chain address for an asset (called after wallet init) */
+  setAssetAddress: (symbol: string, address: string) => void;
+
+  /** Update on-chain balance for an asset (called after RPC fetch) */
+  updateAssetBalance: (symbol: string, balance: number) => void;
+
+  /** Add a new asset to the wallet (no-op if already present) */
+  addAsset: (asset: Omit<WalletAsset, "usdValue">) => void;
+
+  /** Remove an asset from the wallet (only if balance is zero) */
+  removeAsset: (symbol: string) => void;
 }
 
 // ── Seed balances (testnet / demo) ───────────────────────────────────────────
 const SEED: Omit<WalletAsset, "usdValue">[] = [
-  { symbol:"USDC", name:"USD Coin",  balance:9500,  decimals:6,  color:"#2775ca", type:"stablecoin", network:"Arc",      address:"0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b", change24h:0    },
-  { symbol:"USDT", name:"Tether",    balance:2400,  decimals:6,  color:"#26a17b", type:"stablecoin", network:"Arc",      address:"0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c", change24h:0    },
-  { symbol:"ETH",  name:"Ethereum",  balance:1.45,  decimals:18, color:"#627eea", type:"crypto",     network:"Ethereum", address:"0x3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d", change24h:2.1  },
-  { symbol:"BTC",  name:"Bitcoin",   balance:0.042, decimals:8,  color:"#f7931a", type:"crypto",     network:"Bitcoin",  address:"bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",  change24h:1.8  },
-  { symbol:"SOL",  name:"Solana",    balance:18.5,  decimals:9,  color:"#9945ff", type:"crypto",     network:"Solana",   address:"7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgHkv", change24h:3.4 },
-  { symbol:"BNB",  name:"BNB",       balance:2.8,   decimals:18, color:"#f3ba2f", type:"crypto",     network:"BNB",      address:"0x4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e", change24h:-0.5 },
-  { symbol:"ARB",  name:"Arbitrum",  balance:120,   decimals:18, color:"#28a0f0", type:"crypto",     network:"Arbitrum", address:"0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f", change24h:4.2  },
+  // addresses are populated at runtime from the native HD wallet — never hardcoded
+  { symbol:"USDC", name:"USD Coin",  balance:0, decimals:6,  color:"#2775ca", type:"stablecoin", network:"Arc",      address:"", change24h:0    },
+  { symbol:"USDT", name:"Tether",    balance:0, decimals:6,  color:"#26a17b", type:"stablecoin", network:"Ethereum", address:"", change24h:0    },
+  { symbol:"ETH",  name:"Ethereum",  balance:0, decimals:18, color:"#627eea", type:"crypto",     network:"Ethereum", address:"", change24h:0    },
+  { symbol:"BTC",  name:"Bitcoin",   balance:0, decimals:8,  color:"#f7931a", type:"crypto",     network:"Bitcoin",  address:"", change24h:0    },
+  { symbol:"SOL",  name:"Solana",    balance:0, decimals:9,  color:"#9945ff", type:"crypto",     network:"Solana",   address:"", change24h:0    },
+  { symbol:"BNB",  name:"BNB",       balance:0, decimals:18, color:"#f3ba2f", type:"crypto",     network:"BNB",      address:"", change24h:0    },
+  { symbol:"ARB",  name:"Arbitrum",  balance:0, decimals:18, color:"#28a0f0", type:"crypto",     network:"Arbitrum", address:"", change24h:0    },
+  { symbol:"ARC",  name:"Arc",       balance:0, decimals:18, color:"#2775ca", type:"stablecoin", network:"Arc",      address:"", change24h:0    },
 ];
 
 const BASE_PRICES: Record<string, number> = {
-  USDC:1, USDT:1, ETH:3480, BTC:67200, SOL:172, BNB:595, ARB:1.12,
+  USDC:1, USDT:1, ETH:3480, BTC:67200, SOL:172, BNB:595, ARB:1.12, ARC:1,
 };
 
 function recompute(assets: WalletAsset[], prices: Record<string, number>) {
@@ -164,13 +178,7 @@ export const useWalletStore = create<WalletState>()(
   persist(
     (set, get) => ({
       assets: SEED.map(a => ({ ...a, usdValue: a.balance * (BASE_PRICES[a.symbol] ?? 1) })),
-      txHistory: [
-        { id:"tx_seed1", type:"receive",  asset:"USDC", amount:5000,  usdAmount:5000,  fee:0,    status:"completed", from:"Bank deposit",     createdAt: Date.now()-86400000*3 },
-        { id:"tx_seed2", type:"swap",     asset:"ETH",  amount:0.5,   usdAmount:1740,  fee:2.1,  status:"completed",                          createdAt: Date.now()-86400000*2, toAsset:"USDC", toAmount:1737.9 },
-        { id:"tx_seed3", type:"send",     asset:"USDC", amount:200,   usdAmount:200,   fee:0.01, status:"completed", to:"0xABCD…1234",        createdAt: Date.now()-86400000   },
-        { id:"tx_seed4", type:"p2p",      asset:"USDC", amount:500,   usdAmount:500,   fee:1,    status:"completed", note:"NGN P2P trade",    createdAt: Date.now()-3600000    },
-        { id:"tx_seed5", type:"deposit",  asset:"USDT", amount:2400,  usdAmount:2400,  fee:0,    status:"completed", note:"Tether deposit",   createdAt: Date.now()-7200000    },
-      ],
+      txHistory: [],
       totalUsd:       recompute(SEED.map(a => ({ ...a, usdValue:0 })), BASE_PRICES),
       totalChange24h: 1.4,
       primaryFiat:      "NGN",
@@ -318,6 +326,48 @@ export const useWalletStore = create<WalletState>()(
         const id = genId();
         set(s => ({ txHistory: [{ ...tx, id, createdAt: Date.now() }, ...s.txHistory].slice(0, 500) }));
         return id;
+      },
+
+      setAssetAddress: (symbol, address) => {
+        set(s => ({
+          assets: s.assets.map(a =>
+            a.symbol === symbol ? { ...a, address } : a
+          ),
+        }));
+      },
+
+      updateAssetBalance: (symbol, balance) => {
+        set(s => {
+          const prices = s._livePrices;
+          const usdPx = prices[symbol] ?? BASE_PRICES[symbol] ?? 1;
+          const assets = s.assets.map(a =>
+            a.symbol === symbol
+              ? { ...a, balance, usdValue: balance * usdPx }
+              : a
+          );
+          return { assets, totalUsd: recompute(assets, prices) };
+        });
+      },
+
+      addAsset: (asset) => {
+        set(s => {
+          if (s.assets.find(a => a.symbol === asset.symbol && (!asset.network || a.network === asset.network))) return s;
+          const prices = s._livePrices;
+          const usdPx = prices[asset.symbol] ?? BASE_PRICES[asset.symbol] ?? 1;
+          const newAsset: WalletAsset = { ...asset, usdValue: asset.balance * usdPx };
+          const assets = [...s.assets, newAsset];
+          return { assets, totalUsd: recompute(assets, prices) };
+        });
+      },
+
+      removeAsset: (symbol) => {
+        set(s => {
+          const asset = s.assets.find(a => a.symbol === symbol);
+          // Only remove if balance is zero — never destroy funds silently
+          if (!asset || asset.balance > 0) return s;
+          const assets = s.assets.filter(a => a.symbol !== symbol);
+          return { assets, totalUsd: recompute(assets, s._livePrices) };
+        });
       },
     }),
     {

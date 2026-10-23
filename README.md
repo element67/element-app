@@ -1,6 +1,8 @@
-# PERPX — Perpetual Futures DEX on Arc Testnet
+# RushPay — Global Fintech Super-App
 
-A production-quality perpetual futures trading terminal built on the **Arc testnet** (USDC-native EVM chain). Dense dark UI styled after professional trading terminals, full Solidity smart-contract stack, hybrid offchain matching engine, and a live WebSocket market-data feed.
+RushPay is a self-custodial fintech super-app built with Arc Studio. It combines crypto wallets, P2P trading, Quick Swap, DeFi, local-currency (NGN) accounts, AI-assisted settlement, and an onchain merchant escrow marketplace in a single Liquid Glass UI.
+
+Built with [Arc Studio](https://studio.arc.io)
 
 ---
 

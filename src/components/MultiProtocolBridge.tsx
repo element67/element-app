@@ -12,8 +12,10 @@
  * Real integrations only. No simulated quotes or fake balances.
  */
 import { useState, useCallback, useEffect, useRef } from "react";
+import { DeFiWalletGate } from "@/components/DeFiWalletGate";
 import { useAccount, useWalletClient, usePublicClient } from "wagmi";
 import { isAddress } from "viem";
+import { type UseNativeWalletReturn } from "@/hooks/useNativeWallet";
 import {
   ArrowUpDown, Search, ChevronDown, ExternalLink,
   RefreshCw, AlertTriangle, CheckCircle2, Clock, X,
@@ -24,7 +26,7 @@ import {
   formatRelayAmount, parseRelayAmount,
   type RelayChain, type RelayCurrency,
 } from "@/hooks/useRelay";
-import { DeFiWalletGate } from "@/components/DeFiWalletGate";
+import { CryptoIcon } from "@/components/AssetIcons";
 import { useFxDisplay } from "@/hooks/useFxDisplay";
 import {
   PROVIDER_REGISTRY, CCTP_CHAINS, isCctpSupported,
@@ -58,17 +60,7 @@ function TokenLogo({ token, size = 24 }: { token: RelayCurrency; size?: number }
     return <img src={logo} alt={token.symbol} width={size} height={size}
       className="rounded-full object-cover flex-shrink-0" onError={() => setErr(true)} />;
   }
-  const colors: Record<string, string> = {
-    ETH: "#627eea", USDC: "#2775ca", USDT: "#26a17b", BTC: "#f7931a",
-    SOL: "#9945ff", BNB: "#f3ba2f", MATIC: "#8247e5", ARB: "#28a0f0",
-    OP: "#ff0420", AVAX: "#e84142",
-  };
-  return (
-    <div className="rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white"
-      style={{ width: size, height: size, background: colors[token.symbol.toUpperCase()] ?? "#4b5563", fontSize: size * 0.38 }}>
-      {token.symbol.slice(0, 3)}
-    </div>
-  );
+  return <CryptoIcon symbol={token.symbol.toUpperCase()} size={size} />;
 }
 
 // ─── Chain Picker modal ───────────────────────────────────────────────────────
@@ -400,11 +392,21 @@ function BridgeHistory({ onClose }: { onClose: () => void }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function MultiProtocolBridge() {
-  const { address, isConnected, chainId: walletChainId } = useAccount();
+export function MultiProtocolBridge({ nativeWallet, requireExternalWallet = false }: {
+  nativeWallet?: UseNativeWalletReturn;
+  requireExternalWallet?: boolean;
+}) {
+  const { address: externalAddress, isConnected, chainId: walletChainId } = useAccount();
   const { data: walletClient } = useWalletClient();
   const publicClientHook = usePublicClient();
   const fx = useFxDisplay();
+
+  // When requireExternalWallet=true (DeFi), only use external wallet address
+  // Otherwise prefer native wallet, fall back to external
+  const nativeAddress = (!requireExternalWallet && nativeWallet?.addresses)
+    ? (nativeWallet.addresses["Ethereum"] ?? nativeWallet.addresses["Arc Testnet"] ?? Object.values(nativeWallet.addresses)[0])
+    : undefined;
+  const address = nativeAddress ?? externalAddress;
 
   // Provider selection
   const [selectedProvider, setSelectedProvider] = useState<BridgeProviderId>("relay");
@@ -481,7 +483,9 @@ export function MultiProtocolBridge() {
   const effectiveProvider = selectedProvider === "cctp" && !cctpEligible ? "relay" : selectedProvider;
 
   // Quote
-  const canQuote = isConnected && address && fromChain && toChain && fromToken && amount && parseFloat(amount) > 0;
+  // DeFi: only external wallet counts. Wallet section: native or external both count.
+  const hasWallet = requireExternalWallet ? isConnected : !!(nativeWallet?.walletId || isConnected);
+  const canQuote = hasWallet && !!address && !!fromChain && !!toChain && !!fromToken && !!amount && parseFloat(amount) > 0;
 
   const handleGetQuote = useCallback(async () => {
     if (!canQuote || !fromToken || !fromChain || !toChain || !address) return;
@@ -507,9 +511,9 @@ export function MultiProtocolBridge() {
     return () => { if (quoteTimer.current) clearTimeout(quoteTimer.current); };
   }, [canQuote, amount, fromToken?.address, toToken?.address, fromChain?.id, toChain?.id, selectedProvider]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Execute Relay transaction
+  // Execute Relay transaction — native wallet primary, external wallet fallback
   const handleExecute = useCallback(async () => {
-    if (!quote || !walletClient || !publicClientHook || isExpired || !fromChain || !toChain || !fromToken) return;
+    if (!quote || isExpired || !fromChain || !toChain || !fromToken || !address) return;
     setExecuting(true);
     setExecError(null);
     const txId = `bridge_${Date.now()}`;
@@ -520,30 +524,59 @@ export function MultiProtocolBridge() {
       if (!step?.items?.[0]) throw new Error("No executable step in quote");
       const tx = step.items[0].data;
 
-      if (walletChainId !== tx.chainId) {
-        await walletClient.switchChain({ id: tx.chainId });
-      }
+      let hash: string;
 
-      const hash = await walletClient.sendTransaction({
-        to: tx.to as `0x${string}`,
-        data: tx.data as `0x${string}`,
-        value: tx.value ? BigInt(tx.value) : 0n,
-        ...(tx.maxFeePerGas ? { maxFeePerGas: BigInt(tx.maxFeePerGas) } : {}),
-        ...(tx.maxPriorityFeePerGas ? { maxPriorityFeePerGas: BigInt(tx.maxPriorityFeePerGas) } : {}),
-        ...(tx.gasLimit ? { gas: BigInt(tx.gasLimit) } : {}),
-        chainId: tx.chainId,
-      });
+      if (!requireExternalWallet && nativeWallet?.walletId) {
+        // ── Native wallet path: sign + broadcast via server ───────────────────
+        const res = await fetch("/api/wallet/send-raw", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            walletId: nativeWallet.walletId,
+            chainId: tx.chainId,
+            to: tx.to,
+            data: tx.data,
+            value: tx.value ?? "0",
+            maxFeePerGas: tx.maxFeePerGas,
+            maxPriorityFeePerGas: tx.maxPriorityFeePerGas,
+            gasLimit: tx.gasLimit,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(err.error ?? `Server error ${res.status}`);
+        }
+        const result = await res.json() as { txHash: string };
+        hash = result.txHash;
+      } else if (walletClient && publicClientHook) {
+        // ── External wallet path ──────────────────────────────────────────────
+        if (walletChainId !== tx.chainId) {
+          await walletClient.switchChain({ id: tx.chainId });
+        }
+        hash = await walletClient.sendTransaction({
+          to: tx.to as `0x${string}`,
+          data: tx.data as `0x${string}`,
+          value: tx.value ? BigInt(tx.value) : 0n,
+          ...(tx.maxFeePerGas ? { maxFeePerGas: BigInt(tx.maxFeePerGas) } : {}),
+          ...(tx.maxPriorityFeePerGas ? { maxPriorityFeePerGas: BigInt(tx.maxPriorityFeePerGas) } : {}),
+          ...(tx.gasLimit ? { gas: BigInt(tx.gasLimit) } : {}),
+          chainId: tx.chainId,
+        });
+        await publicClientHook.waitForTransactionReceipt({ hash: hash as `0x${string}` });
+      } else {
+        throw new Error("No wallet available to sign the transaction.");
+      }
 
       // Save to history
       const outDec = toToken?.decimals ?? quote.details?.currencyOut?.currency?.decimals ?? 18;
-      const outAmount = quote.details?.currencyOut?.amount
+      const outAmt = quote.details?.currencyOut?.amount
         ? formatRelayAmount(quote.details.currencyOut.amount, outDec) : "~";
       saveBridgeTx({
         id: txId, providerId: "relay",
         fromChain: fromChainMeta, toChain: toChainMeta,
         fromToken: { ...fromToken, chainId: fromChain.id },
         toToken: { ...(toToken ?? fromToken), chainId: toChain.id },
-        fromAmount: amount, toAmount: outAmount,
+        fromAmount: amount, toAmount: outAmt,
         status: "pending", sourceTxHash: hash,
         createdAt: Date.now(), updatedAt: Date.now(),
         requestId: quote.requestId,
@@ -554,7 +587,6 @@ export function MultiProtocolBridge() {
 
       setExecutingRequestId(quote.requestId);
       clearQuote(); setAmount("");
-      await publicClientHook.waitForTransactionReceipt({ hash });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setExecError(msg.includes("User rejected") ? "Transaction rejected in wallet." : msg);
@@ -562,7 +594,7 @@ export function MultiProtocolBridge() {
     } finally {
       setExecuting(false);
     }
-  }, [quote, walletClient, publicClientHook, isExpired, walletChainId, clearQuote, fromChain, toChain, fromToken, toToken, amount]);
+  }, [quote, isExpired, address, nativeWallet, walletClient, publicClientHook, walletChainId, clearQuote, fromChain, toChain, fromToken, toToken, amount]);
 
   // Update history when status changes — map Relay status to BridgeTx status subset
   useEffect(() => {
@@ -602,23 +634,11 @@ export function MultiProtocolBridge() {
     return <BridgeHistory onClose={() => setShowHistory(false)} />;
   }
 
-  // ── Wallet gate ───────────────────────────────────────────────────────────
-  if (!isConnected && effectiveProvider === "relay") {
+  // ── DeFi mode: require external wallet ────────────────────────────────────
+  if (requireExternalWallet && !isConnected) {
     return (
-      <div className="space-y-3">
-        {/* Header still visible */}
-        <BridgeHeader
-          selectedProvider={selectedProvider}
-          providerMeta={providerMeta}
-          cctpEligible={!!cctpEligible}
-          onOpenProviderSelector={() => setShowProviderSelector(true)}
-          onShowHistory={() => setShowHistory(true)}
-          chainsLoading={chainsLoading}
-        />
-        <DeFiWalletGate reason="Connect your wallet to get live bridge quotes and execute cross-chain transfers via Relay." />
-        {showProviderSelector && (
-          <ProviderSelector selected={selectedProvider} onSelect={setSelectedProvider} onClose={() => setShowProviderSelector(false)} cctpEligible={!!cctpEligible} fx={fx} />
-        )}
+      <div className="py-4">
+        <DeFiWalletGate reason="Connect an external wallet to use the DeFi bridge." />
       </div>
     );
   }
@@ -779,10 +799,10 @@ export function MultiProtocolBridge() {
             </button>
           )}
           {quote && !isExpired && (
-            <button onClick={() => void handleExecute()} disabled={executing || !walletClient}
+            <button onClick={() => void handleExecute()} disabled={executing}
               className="w-full h-10 rounded-xl text-sm font-bold transition-all disabled:opacity-40"
               style={{ background: "var(--buy)", color: "#fff" }}>
-              {executing ? "Confirming in wallet…" : `Bridge${isCrossChainSwap ? " & Swap" : ""} via Relay`}
+              {executing ? "Broadcasting…" : `Bridge${isCrossChainSwap ? " & Swap" : ""} via Relay`}
             </button>
           )}
           {quote && isExpired && (

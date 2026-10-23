@@ -124,14 +124,49 @@ export interface FiatBalance {
   pending:  number;
 }
 
+export interface FiatSendRecord {
+  id: string;
+  toAccountNumber: string;
+  toDisplayName: string;
+  currency: string;
+  amount: number;
+  note: string;
+  ts: number;
+  status: "completed" | "failed";
+}
+
+export interface FiatAccountInfo {
+  accountNumber: string;
+  displayName: string;
+  currency: string;
+}
+
 export interface FiatState {
   balances:    FiatBalance[];
   deposits:    FiatDeposit[];
+  sends:       FiatSendRecord[];
+  /** Registered in-app account info for this user */
+  myAccount:   FiatAccountInfo | null;
   /** Active country (ISO-2) for deposit flow */
   activeCountry: string;
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   setActiveCountry: (code: string) => void;
+
+  /** Register or retrieve this user's fiat account number */
+  registerAccount: (walletId: string, displayName: string, currency: string, phone?: string) => Promise<FiatAccountInfo>;
+
+  /** Look up a recipient by account number — returns display name or throws */
+  lookupAccount: (accountNumber: string) => Promise<FiatAccountInfo>;
+
+  /** Send fiat to another in-app account. Debits local balance and records on server. */
+  sendFiat: (opts: {
+    fromWalletId: string;
+    toAccountNumber: string;
+    currency: string;
+    amount: number;
+    note?: string;
+  }) => Promise<FiatSendRecord>;
 
   /** Initiate a deposit — creates a ledger entry with status "initiated" */
   initiateDeposit: (opts: {
@@ -172,9 +207,70 @@ export const useFiatStore = create<FiatState>()(
     (set, get) => ({
       balances:      SEED_BALANCES,
       deposits:      [],
+      sends:         [],
+      myAccount:     null,
       activeCountry: "NG",
 
       setActiveCountry: (code) => set({ activeCountry: code }),
+
+      registerAccount: async (walletId, displayName, currency, phone) => {
+        const res = await fetch("/api/fiat/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ walletId, displayName, currency, phone }),
+        });
+        if (!res.ok) {
+          const e = await res.json() as { error?: string };
+          throw new Error(e.error ?? "Failed to register account");
+        }
+        const acct = await res.json() as FiatAccountInfo;
+        set({ myAccount: acct });
+        return acct;
+      },
+
+      lookupAccount: async (accountNumber) => {
+        const res = await fetch(`/api/fiat/lookup/${accountNumber.replace(/\D/g,"")}`);
+        if (!res.ok) {
+          const e = await res.json() as { error?: string };
+          throw new Error(e.error ?? "Account not found");
+        }
+        return res.json() as Promise<FiatAccountInfo>;
+      },
+
+      sendFiat: async ({ fromWalletId, toAccountNumber, currency, amount, note }) => {
+        const bal = get().balances.find(b => b.currency === currency);
+        if (!bal || bal.balance < amount) throw new Error(`Insufficient ${currency} balance`);
+
+        const idempotencyKey = `send_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+        const res = await fetch("/api/fiat/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fromWalletId, toAccountNumber: toAccountNumber.replace(/\D/g,""), currency, amount, note: note ?? "", idempotencyKey }),
+        });
+        if (!res.ok) {
+          const e = await res.json() as { error?: string };
+          throw new Error(e.error ?? "Transfer failed");
+        }
+        const result = await res.json() as { txId: string; toDisplayName: string };
+
+        // Debit local balance
+        set(s => ({
+          balances: s.balances.map(b => b.currency === currency ? { ...b, balance: b.balance - amount } : b),
+        }));
+
+        const record: FiatSendRecord = {
+          id: result.txId,
+          toAccountNumber,
+          toDisplayName: result.toDisplayName,
+          currency,
+          amount,
+          note: note ?? "",
+          ts: Date.now(),
+          status: "completed",
+        };
+        set(s => ({ sends: [record, ...s.sends].slice(0, 200) }));
+        return record;
+      },
 
       initiateDeposit: ({ currency, amount, provider, feeBps, accountName, accountNumber, bankName }) => {
         const fee = Math.round(amount * feeBps) / 10000;
@@ -263,8 +359,8 @@ export const useFiatStore = create<FiatState>()(
       },
     }),
     {
-      name: "financex-fiat-v1",
-      partialize: s => ({ balances: s.balances, deposits: s.deposits.slice(0, 50), activeCountry: s.activeCountry }),
+      name: "rushpay-fiat-v2",
+      partialize: s => ({ balances: s.balances, deposits: s.deposits.slice(0, 50), sends: s.sends.slice(0, 50), myAccount: s.myAccount, activeCountry: s.activeCountry }),
     }
   )
 );

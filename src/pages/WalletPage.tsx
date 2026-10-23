@@ -4,22 +4,29 @@
  */
 import { useState, useMemo } from "react";
 import {
-  Send, Download, ArrowUpDown, Plus, Eye, EyeOff,
+  Send, Download, ArrowUpDown, Eye, EyeOff,
   Copy, CheckCircle2, ChevronRight, Clock, ArrowUpRight,
-  ArrowDownLeft, RefreshCw, Shield, Banknote, Coins, TrendingUp, TrendingDown,
+  ArrowDownLeft, RefreshCw, Shield, Banknote, Loader2,
+  GitBranch, Users, MoreHorizontal, Layers, X, Search, Check, Trash2,
+  ShoppingCart, Plane, Hotel, Smartphone, Wifi, Zap, Tv, GraduationCap,
+  Gamepad2, CreditCard, Gift, Repeat2, Building2, Plus, ArrowLeftRight,
 } from "lucide-react";
+import { ExchangeScreen } from "@/components/ExchangeScreen";
+import { useSharedWallet as useNativeWallet, type UseNativeWalletReturn } from "@/context/NativeWalletContext";
+import { MultiProtocolBridge } from "@/components/MultiProtocolBridge";
 import { useWalletStore, type TxRecord, type WalletAsset } from "@/store/walletStore";
 import { useFiatStore, FIAT_COUNTRIES } from "@/store/fiatStore";
 import { usePriceStore } from "@/store/priceStore";
 import type { Page } from "@/App";
 import { useFxDisplay }  from "@/hooks/useFxDisplay";
 import { getAdapter, validateAddress, estimateFeeUsd, receiveUri, buildAddressUrl } from "@/lib/chainAdapters";
-import { LivePriceStrip } from "@/components/LivePriceStrip";
-import { P2PRateBar }     from "@/components/P2PRateBar";
+
 import { CurrencySwitcher } from "@/components/CurrencySwitcher";
 import { BankDepositModal } from "@/components/BankDepositModal";
 import { NGNAccountPage }    from "@/pages/NGNAccountPage";
 import { CryptoDashboard }  from "@/pages/CryptoDashboard";
+import { CryptoIcon } from "@/components/AssetIcons";
+import { CRYPTO_ASSETS } from "@/lib/assetRegistry";
 
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -64,7 +71,8 @@ const TX_COLOR: Record<string, string> = {
   escrow_lock: "var(--subtle)", escrow_release: "var(--buy)",
 };
 
-// ── AssetRow ─────────────────────────────────────────────────────────────────
+// ── AssetRow (kept for future home-screen use) ────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function AssetRow({ a, onSelect, displayMode = "USD" }: {
   a: WalletAsset;
   onSelect: (a: WalletAsset) => void;
@@ -81,10 +89,7 @@ function AssetRow({ a, onSelect, displayMode = "USD" }: {
       className="w-full flex items-center gap-3 px-4 py-3 transition-colors hover:opacity-80 active:opacity-60"
       style={{ borderBottom: "1px solid var(--border)" }}
     >
-      <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
-        style={{ background: `${a.color}22`, color: a.color }}>
-        {a.symbol.slice(0,2)}
-      </div>
+      <CryptoIcon symbol={a.symbol} size={36} />
       <div className="flex-1 text-left">
         <div className="text-xs font-semibold" style={{ color: "var(--ink)" }}>{a.name}</div>
         <div className="text-[10px]" style={{ color: "var(--subtle)" }}>
@@ -144,48 +149,110 @@ function TxRow({ tx }: { tx: TxRecord }) {
   );
 }
 
-// ── QuickSendModal ────────────────────────────────────────────────────────────
-function QuickSendModal({ asset, onClose }: { asset: WalletAsset; onClose: () => void }) {
-  const debit       = useWalletStore(s => s.debit);
-  const _livePrices = useWalletStore(s => s._livePrices);
-  const fx          = useFxDisplay();
-  const adapter     = getAdapter(asset.network, asset.symbol);
+// ── Network map — display names to wallet network keys per symbol ─────────────
+// EVM-family share the same address; non-EVM each have their own key.
+const SYMBOL_NETWORKS: Record<string, Array<{ label: string; network: string; family: "evm"|"solana"|"bitcoin"|"other" }>> = {
+  BTC:  [{ label: "Bitcoin",       network: "Bitcoin",   family: "bitcoin" }],
+  ETH:  [
+    { label: "Ethereum",    network: "Ethereum",  family: "evm" },
+    { label: "Arbitrum",    network: "Arbitrum",  family: "evm" },
+    { label: "Optimism",    network: "Optimism",  family: "evm" },
+    { label: "Base",        network: "Base",      family: "evm" },
+    { label: "Polygon",     network: "Polygon",   family: "evm" },
+  ],
+  SOL:  [{ label: "Solana",         network: "Solana",    family: "solana" }],
+  BNB:  [{ label: "BNB Smart Chain",network: "BNB",       family: "evm" }],
+  XRP:  [{ label: "XRP Ledger",     network: "XRP",       family: "other" }],
+  USDT: [
+    { label: "Ethereum",    network: "Ethereum",  family: "evm" },
+    { label: "BNB Chain",   network: "BNB",       family: "evm" },
+    { label: "Tron",        network: "TRON",      family: "other" },
+    { label: "Solana",      network: "Solana",    family: "solana" },
+    { label: "Polygon",     network: "Polygon",   family: "evm" },
+    { label: "Arbitrum",    network: "Arbitrum",  family: "evm" },
+  ],
+  USDC: [
+    { label: "Ethereum",    network: "Ethereum",  family: "evm" },
+    { label: "Base",        network: "Base",      family: "evm" },
+    { label: "Arbitrum",    network: "Arbitrum",  family: "evm" },
+    { label: "Polygon",     network: "Polygon",   family: "evm" },
+    { label: "Solana",      network: "Solana",    family: "solana" },
+    { label: "Avalanche",   network: "Avalanche", family: "evm" },
+    { label: "Optimism",    network: "Optimism",  family: "evm" },
+    { label: "Arc Testnet", network: "Arc Testnet", family: "evm" },
+  ],
+  AVAX: [{ label: "Avalanche",      network: "Avalanche", family: "evm" }],
+  ARC:  [
+    { label: "Arc Testnet", network: "Arc Testnet", family: "evm" },
+    { label: "Arc Mainnet", network: "Arc",       family: "evm" },
+  ],
+  ARB:  [{ label: "Arbitrum",       network: "Arbitrum",  family: "evm" }],
+  OP:   [{ label: "Optimism",       network: "Optimism",  family: "evm" }],
+  MATIC:[{ label: "Polygon",        network: "Polygon",   family: "evm" }],
+  LINK: [
+    { label: "Ethereum",    network: "Ethereum",  family: "evm" },
+    { label: "Arbitrum",    network: "Arbitrum",  family: "evm" },
+    { label: "Polygon",     network: "Polygon",   family: "evm" },
+  ],
+  DOGE: [{ label: "Dogecoin",       network: "Dogecoin",  family: "bitcoin" }],
+  TRX:  [{ label: "Tron",           network: "TRON",      family: "other" }],
+  DAI:  [
+    { label: "Ethereum",    network: "Ethereum",  family: "evm" },
+    { label: "Base",        network: "Base",      family: "evm" },
+    { label: "Arbitrum",    network: "Arbitrum",  family: "evm" },
+    { label: "Polygon",     network: "Polygon",   family: "evm" },
+  ],
+};
+function getNetworksForSymbol(symbol: string, fallbackNetwork: string) {
+  return SYMBOL_NETWORKS[symbol.toUpperCase()] ?? [{ label: fallbackNetwork, network: fallbackNetwork, family: "evm" as const }];
+}
 
-  const [to,    setTo]    = useState("");
-  const [amt,   setAmt]   = useState("");
-  const [sent,  setSent]  = useState(false);
-  const [err,   setErr]   = useState("");
+// ── QuickSendModal ────────────────────────────────────────────────────────────
+function QuickSendModal({ asset, onClose, nativeWallet }: { asset: WalletAsset; onClose: () => void; nativeWallet: UseNativeWalletReturn }) {
+  const debit        = useWalletStore(s => s.debit);
+  const _livePrices  = useWalletStore(s => s._livePrices);
+  const fx           = useFxDisplay();
+
+  const availableNetworks = getNetworksForSymbol(asset.symbol, asset.network ?? "Ethereum");
+  const [selectedNetIdx, setSelectedNetIdx] = useState(0);
+  const selectedNet = availableNetworks[selectedNetIdx];
+  const network     = selectedNet.network;
+  const adapter     = getAdapter(network, asset.symbol);
+
+  const [tab, setTab]         = useState<"onchain"|"internal">("onchain");
+  const [to, setTo]           = useState("");
+  const [amt, setAmt]         = useState("");
   const [addrErr, setAddrErr] = useState("");
 
-  const price  = _livePrices[asset.symbol] ?? asset.usdValue / (asset.balance || 1);
-  const numAmt = parseFloat(amt) || 0;
-  const usdVal = numAmt * price;
-  const fee    = estimateFeeUsd(adapter, _livePrices);
+  const price   = _livePrices[asset.symbol] ?? asset.usdValue / (asset.balance || 1);
+  const numAmt  = parseFloat(amt) || 0;
+  const usdVal  = numAmt * price;
+  const fee     = estimateFeeUsd(adapter, _livePrices);
 
   function handleAddrChange(v: string) {
     setTo(v);
     if (v.trim()) {
       const res = validateAddress(v, adapter);
       setAddrErr(res.valid ? "" : (res.error ?? "Invalid address"));
+    } else { setAddrErr(""); }
+  }
+
+  function handleCryptoSend() {
+    nativeWallet.resetSend();
+    const addrCheck = validateAddress(to, adapter);
+    if (!addrCheck.valid) return;
+    if (numAmt <= 0 || numAmt > asset.balance) return;
+    if (tab === "onchain" && nativeWallet.walletId) {
+      void nativeWallet.sendCrypto({ network, symbol: asset.symbol, to: to.trim(), amount: String(numAmt) });
     } else {
-      setAddrErr("");
+      debit(asset.symbol, numAmt, { type: "send", to: to.trim(), note: `Send ${asset.symbol} on ${adapter.name}` });
     }
   }
 
-  function handleSend() {
-    setErr("");
-    const addrCheck = validateAddress(to, adapter);
-    if (!addrCheck.valid) return setErr(addrCheck.error ?? "Invalid address");
-    if (numAmt <= 0) return setErr("Enter an amount");
-    if (numAmt > asset.balance) return setErr("Insufficient balance");
-    const id = debit(asset.symbol, numAmt, {
-      type: "send", to: to.trim(),
-      note: `Send ${asset.symbol} on ${adapter.name}`,
-    });
-    if (!id) return setErr("Insufficient balance");
-    setSent(true);
-    setTimeout(onClose, 2000);
-  }
+  const isSending   = nativeWallet.sendStatus === "submitting";
+  const isSubmitted = nativeWallet.sendStatus === "submitted";
+  const sendErr     = nativeWallet.sendError;
+  const result      = nativeWallet.sendResult;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
@@ -193,90 +260,141 @@ function QuickSendModal({ asset, onClose }: { asset: WalletAsset; onClose: () =>
       <div className="w-full max-w-md rounded-t-2xl md:rounded-2xl p-5"
         style={{ background: "var(--surface)", border: "1px solid var(--border-mid)" }}
         onClick={e => e.stopPropagation()}>
-        {sent ? (
-          <div className="text-center py-8">
-            <CheckCircle2 size={44} className="mx-auto mb-3" style={{ color: "var(--buy)" }} />
-            <div className="text-sm font-bold mb-1" style={{ color: "var(--ink)" }}>Sent!</div>
+
+        {/* ── Crypto submitted success ── */}
+        {(tab === "onchain" || tab === "internal") && isSubmitted && result ? (
+          <div className="text-center py-8 space-y-3">
+            <CheckCircle2 size={44} className="mx-auto" style={{ color: "var(--buy)" }} />
+            <div className="text-sm font-bold" style={{ color: "var(--ink)" }}>Transaction Submitted</div>
             <div className="text-[11px]" style={{ color: "var(--subtle)" }}>
-              {numAmt} {asset.symbol} on {adapter.name}
+              {numAmt} {asset.symbol} → {to.slice(0,6)}…{to.slice(-4)}
             </div>
+            {result.txHash && (
+              <a href={result.explorerUrl} target="_blank" rel="noopener noreferrer"
+                className="block text-[10px] font-mono px-3 py-2 rounded-lg truncate"
+                style={{ background: "var(--surface-high)", color: "var(--accent)" }}>
+                {result.txHash.slice(0,20)}… ↗ Explorer
+              </a>
+            )}
+            {result.simulated && (
+              <div className="text-[9px] px-3 py-2 rounded-lg"
+                style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24" }}>
+                Signing not yet implemented for {network}. Ledger updated locally only.
+              </div>
+            )}
+            <div className="text-[10px]" style={{ color: "var(--subtle)" }}>Fee: {result.fee}</div>
+            <button onClick={onClose} className="w-full py-2.5 rounded-xl text-xs font-bold"
+              style={{ background: "var(--accent)", color: "#fff" }}>Done</button>
           </div>
         ) : (
           <>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-sm font-bold" style={{ color: "var(--ink)" }}>Send {asset.symbol}</div>
-                <div className="text-[10px] mt-0.5 px-2 py-0.5 rounded-full inline-block"
-                  style={{ background: "var(--surface-high)", color: "var(--subtle)" }}>
-                  {adapter.name}
-                </div>
-              </div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold" style={{ color: "var(--ink)" }}>Send</div>
               <button onClick={onClose} style={{ color: "var(--subtle)" }}>✕</button>
             </div>
 
-            <div className="space-y-3">
-              {/* Address */}
-              <div>
-                <div className="text-[10px] mb-1" style={{ color: "var(--subtle)" }}>
-                  Recipient {adapter.name} address
-                </div>
-                <input value={to} onChange={e => handleAddrChange(e.target.value)}
-                  placeholder={adapter.addressPlaceholder}
-                  className="w-full text-xs rounded-lg px-3 py-2.5"
-                  style={{
-                    background: "var(--surface-high)", color: "var(--ink)", outline: "none",
-                    border: `1px solid ${addrErr ? "var(--sell)" : "var(--border)"}`,
-                  }} />
-                {addrErr && <div className="text-[10px] mt-1" style={{ color: "var(--sell)" }}>{addrErr}</div>}
-                {!addrErr && to && (
-                  <div className="text-[10px] mt-1 flex items-center gap-1" style={{ color: "var(--buy)" }}>
-                    <CheckCircle2 size={10} /> Valid {adapter.name} address
+            {/* Tab bar */}
+            <div className="flex gap-1 mb-4 p-1 rounded-xl" style={{ background: "var(--surface-high)" }}>
+              <button onClick={() => setTab("onchain")}
+                className="flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-colors"
+                style={{ background: tab === "onchain" ? "var(--accent)" : "transparent", color: tab === "onchain" ? "#fff" : "var(--subtle)" }}>
+                On-chain
+              </button>
+              <button onClick={() => setTab("internal")}
+                className="flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-colors"
+                style={{ background: tab === "internal" ? "var(--surface)" : "transparent", color: tab === "internal" ? "var(--ink)" : "var(--subtle)" }}>
+                Internal
+              </button>
+            </div>
+
+            {/* ── ON-CHAIN + INTERNAL TAB ── */}
+            {(tab === "onchain" || tab === "internal") && (
+              <div className="space-y-3">
+                {/* Network selector */}
+                {availableNetworks.length > 1 && tab === "onchain" && (
+                  <div>
+                    <div className="text-[10px] mb-1.5" style={{ color: "var(--subtle)" }}>Select network</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {availableNetworks.map((n, i) => (
+                        <button key={n.network} onClick={() => { setSelectedNetIdx(i); setTo(""); setAddrErr(""); }}
+                          className="px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all"
+                          style={{
+                            background: i === selectedNetIdx ? "var(--accent)" : "var(--surface-high)",
+                            color: i === selectedNetIdx ? "#fff" : "var(--subtle)",
+                            border: `1px solid ${i === selectedNetIdx ? "var(--accent)" : "var(--border)"}`,
+                          }}>
+                          {n.label}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedNet.family !== "evm" && (
+                      <div className="text-[10px] mt-1.5 px-2 py-1 rounded-lg"
+                        style={{ background: "rgba(251,191,36,0.08)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.15)" }}>
+                        {selectedNet.family === "bitcoin" ? "Bitcoin" : selectedNet.family === "solana" ? "Solana" : "This"} transactions are signed server-side. Address generation is live; signing will be noted in the result.
+                      </div>
+                    )}
                   </div>
                 )}
-                <div className="text-[9px] mt-1" style={{ color: "var(--subtle)" }}>{adapter.addressHint}</div>
-              </div>
-
-              {/* Amount */}
-              <div>
-                <div className="flex justify-between text-[10px] mb-1">
-                  <span style={{ color: "var(--subtle)" }}>Amount ({asset.symbol})</span>
-                  <button onClick={() => setAmt(String(asset.balance))}
-                    className="text-[10px] font-semibold" style={{ color: "var(--accent)" }}>Max</button>
+                {tab === "internal" && (
+                  <div className="text-[10px] px-2 py-0.5 rounded-full inline-block"
+                    style={{ background: "var(--surface-high)", color: "var(--subtle)" }}>
+                    {asset.symbol} · Internal ledger only (no blockchain)
+                  </div>
+                )}
+                <div>
+                  <div className="text-[10px] mb-1" style={{ color: "var(--subtle)" }}>
+                    Recipient {adapter.name} address
+                  </div>
+                  <input value={to} onChange={e => handleAddrChange(e.target.value)}
+                    placeholder={adapter.addressPlaceholder}
+                    className="w-full text-xs rounded-lg px-3 py-2.5"
+                    style={{ background: "var(--surface-high)", color: "var(--ink)", outline: "none",
+                      border: `1px solid ${addrErr ? "var(--sell)" : "var(--border)"}` }} />
+                  {addrErr && <div className="text-[10px] mt-1" style={{ color: "var(--sell)" }}>{addrErr}</div>}
+                  {!addrErr && to && (
+                    <div className="text-[10px] mt-1 flex items-center gap-1" style={{ color: "var(--buy)" }}>
+                      <CheckCircle2 size={10} /> Valid {adapter.name} address
+                    </div>
+                  )}
+                  <div className="text-[9px] mt-1" style={{ color: "var(--subtle)" }}>{adapter.addressHint}</div>
                 </div>
-                <input value={amt} onChange={e => setAmt(e.target.value)} type="number" min="0" step="any"
-                  placeholder="0.00"
-                  className="w-full text-xs rounded-lg px-3 py-2.5"
-                  style={{ background: "var(--surface-high)", color: "var(--ink)", border: "1px solid var(--border)", outline: "none" }} />
-                <div className="flex justify-between text-[9px] mt-1">
-                  <span style={{ color: "var(--subtle)" }}>Balance: {asset.balance} {asset.symbol}</span>
-                  {numAmt > 0 && <span style={{ color: "var(--subtle)" }}>≈ {fx.fmt(usdVal)}</span>}
+                <div>
+                  <div className="flex justify-between text-[10px] mb-1">
+                    <span style={{ color: "var(--subtle)" }}>Amount ({asset.symbol})</span>
+                    <button onClick={() => setAmt(String(asset.balance))}
+                      className="text-[10px] font-semibold" style={{ color: "var(--accent)" }}>Max</button>
+                  </div>
+                  <input value={amt} onChange={e => setAmt(e.target.value)} type="number" min="0" step="any"
+                    placeholder="0.00" className="w-full text-xs rounded-lg px-3 py-2.5"
+                    style={{ background: "var(--surface-high)", color: "var(--ink)", border: "1px solid var(--border)", outline: "none" }} />
+                  <div className="flex justify-between text-[9px] mt-1">
+                    <span style={{ color: "var(--subtle)" }}>Balance: {asset.balance} {asset.symbol}</span>
+                    {numAmt > 0 && <span style={{ color: "var(--subtle)" }}>≈ {fx.fmt(usdVal)}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between px-3 py-2 rounded-lg text-[10px]"
+                  style={{ background: "var(--surface-high)", border: "1px solid var(--border)" }}>
+                  <span style={{ color: "var(--subtle)" }}>Network fee</span>
+                  <span style={{ color: "var(--ink)" }}>{tab === "internal" ? "Free" : fee.label}</span>
+                </div>
+                {sendErr && <div className="text-[10px] px-3 py-2 rounded-lg"
+                  style={{ background: "rgba(248,113,113,0.1)", color: "var(--sell)" }}>{sendErr}</div>}
+                <div className="flex gap-2 pt-1">
+                  <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-xs font-semibold"
+                    style={{ background: "var(--surface-high)", color: "var(--subtle)" }}>Cancel</button>
+                  <button onClick={handleCryptoSend}
+                    disabled={!!addrErr || !to || numAmt <= 0 || numAmt > asset.balance || isSending}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-bold disabled:opacity-40 flex items-center justify-center gap-1"
+                    style={{ background: "var(--accent)", color: "#fff" }}>
+                    {isSending ? <><Loader2 size={12} className="animate-spin" /> Sending…</> : `Send ${asset.symbol}`}
+                  </button>
+                </div>
+                <div className="text-[9px] text-center" style={{ color: "var(--subtle)" }}>
+                  {tab === "onchain" ? `Transactions on ${adapter.name} are irreversible. Verify the address.` : "Internal transfer updates your local balance only."}
                 </div>
               </div>
+            )}
 
-              {/* Fee estimate */}
-              <div className="flex items-center justify-between px-3 py-2 rounded-lg text-[10px]"
-                style={{ background: "var(--surface-high)", border: "1px solid var(--border)" }}>
-                <span style={{ color: "var(--subtle)" }}>Network fee ({adapter.name})</span>
-                <span style={{ color: "var(--ink)" }}>{fee.label}</span>
-              </div>
-
-              {err && <div className="text-[10px] px-3 py-2 rounded-lg"
-                style={{ background: "rgba(248,113,113,0.1)", color: "var(--sell)" }}>{err}</div>}
-
-              <div className="flex gap-2 pt-1">
-                <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-xs font-semibold"
-                  style={{ background: "var(--surface-high)", color: "var(--subtle)" }}>Cancel</button>
-                <button onClick={handleSend}
-                  disabled={!!addrErr || !to || numAmt <= 0}
-                  className="flex-1 py-2.5 rounded-xl text-xs font-bold disabled:opacity-40"
-                  style={{ background: "var(--accent)", color: "#fff" }}>Send {asset.symbol}</button>
-              </div>
-
-              <div className="text-[9px] text-center" style={{ color: "var(--subtle)" }}>
-                Transactions on {adapter.name} are irreversible. Double-check the address before sending.
-              </div>
-            </div>
           </>
         )}
       </div>
@@ -298,18 +416,24 @@ function QRCode({ value, size = 160 }: { value: string; size?: number }) {
 }
 
 // ── QuickReceiveModal ─────────────────────────────────────────────────────────
-function QuickReceiveModal({ asset, onClose }: { asset: WalletAsset; onClose: () => void }) {
-  const adapter   = getAdapter(asset.network, asset.symbol);
-  const addr      = asset.address ?? "";
-  const qrValue   = addr ? receiveUri(adapter, addr, asset.symbol) : "";
-  const explorerUrl = addr ? buildAddressUrl(adapter, addr) : "";
-  const [copied, setCopied] = useState(false);
+function QuickReceiveModal({ asset, onClose, nativeWallet }: { asset: WalletAsset; onClose: () => void; nativeWallet: UseNativeWalletReturn }) {
+  const availableNetworks = getNetworksForSymbol(asset.symbol, asset.network ?? "Ethereum");
+  const [selectedNetIdx, setSelectedNetIdx] = useState(0);
+  const selectedNet = availableNetworks[selectedNetIdx];
+  const network     = selectedNet.network;
+  const adapter     = getAdapter(network, asset.symbol);
+  const [copied, setCopied] = useState<string|null>(null);
 
-  function copy() {
-    if (!addr) return;
-    void navigator.clipboard.writeText(addr);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const nativeAddrInfo = nativeWallet.getAddressInfo(network);
+  const addr           = nativeAddrInfo?.address ?? (selectedNet.family === "evm" ? nativeWallet.addresses["Ethereum"] : null) ?? asset.address ?? "";
+  const qrValue        = addr ? receiveUri(adapter, addr, asset.symbol) : "";
+  const explorerUrl    = addr ? buildAddressUrl(adapter, addr) : "";
+  const isLoading      = nativeWallet.loading && !addr;
+
+  function copy(text: string, key: string) {
+    void navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
   }
 
   return (
@@ -319,72 +443,77 @@ function QuickReceiveModal({ asset, onClose }: { asset: WalletAsset; onClose: ()
         style={{ background: "var(--surface)", border: "1px solid var(--border-mid)" }}
         onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div>
             <div className="text-sm font-bold" style={{ color: "var(--ink)" }}>Receive {asset.symbol}</div>
-            <div className="text-[10px] mt-0.5 px-2 py-0.5 rounded-full inline-block"
-              style={{ background: "var(--surface-high)", color: "var(--subtle)" }}>
-              {adapter.name}
-            </div>
+            <div className="text-[10px] mt-0.5" style={{ color: "var(--subtle)" }}>{adapter.name} network</div>
           </div>
           <button onClick={onClose} style={{ color: "var(--subtle)" }}>✕</button>
         </div>
 
-        {addr ? (
+        {/* Network selector — show when asset supports multiple networks */}
+        {availableNetworks.length > 1 && (
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            {availableNetworks.map((n, i) => (
+              <button key={n.network} onClick={() => setSelectedNetIdx(i)}
+                className="px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all"
+                style={{
+                  background: i === selectedNetIdx ? "var(--accent)" : "var(--surface-high)",
+                  color: i === selectedNetIdx ? "#fff" : "var(--subtle)",
+                  border: `1px solid ${i === selectedNetIdx ? "var(--accent)" : "var(--border)"}`,
+                }}>
+                {n.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="text-center py-10">
+            <Loader2 size={28} className="animate-spin mx-auto mb-3" style={{ color: "var(--accent)" }} />
+            <div className="text-xs" style={{ color: "var(--subtle)" }}>Generating your wallet address…</div>
+          </div>
+        ) : addr ? (
           <>
-            {/* QR Code */}
             <div className="flex justify-center mb-4">
               <QRCode value={qrValue} size={180} />
             </div>
-
-            {/* Network badge */}
-            <div className="text-[10px] text-center mb-2 font-semibold" style={{ color: "var(--subtle)" }}>
+            <div className="text-[10px] text-center mb-3 font-semibold" style={{ color: "var(--subtle)" }}>
               Only send <span style={{ color: "var(--ink)" }}>{asset.symbol}</span> on the{" "}
               <span style={{ color: "var(--accent)" }}>{adapter.name}</span> network to this address.
             </div>
-
-            {/* Address box */}
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl mb-3"
               style={{ background: "var(--surface-high)", border: "1px solid var(--border)" }}>
               <span className="flex-1 text-[11px] font-mono break-all leading-relaxed"
                 style={{ color: "var(--ink)" }}>{addr}</span>
-              <button onClick={copy} className="flex-shrink-0 ml-2">
-                {copied
-                  ? <CheckCircle2 size={16} style={{ color: "var(--buy)" }} />
-                  : <Copy size={16} style={{ color: "var(--subtle)" }} />}
+              <button onClick={() => copy(addr, "addr")} className="flex-shrink-0 ml-2">
+                {copied === "addr" ? <CheckCircle2 size={16} style={{ color: "var(--buy)" }} /> : <Copy size={16} style={{ color: "var(--subtle)" }} />}
               </button>
             </div>
-
-            {/* Actions row */}
             <div className="flex gap-2 mb-3">
-              <button onClick={copy}
-                className="flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+              <button onClick={() => copy(addr, "addr-btn")}
+                className="flex-1 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
                 style={{ background: "var(--accent)", color: "#fff" }}>
-                <Copy size={12} /> {copied ? "Copied!" : "Copy address"}
+                <Copy size={12} /> {copied === "addr-btn" ? "Copied!" : "Copy address"}
               </button>
               {explorerUrl && (
                 <a href={explorerUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
                   style={{ background: "var(--surface-high)", color: "var(--subtle)", textDecoration: "none" }}>
-                  View on explorer ↗
+                  Explorer ↗
                 </a>
               )}
             </div>
-
             <div className="text-[9px] text-center px-2" style={{ color: "var(--subtle)" }}>
-              Sending the wrong asset or using the wrong network will result in permanent loss of funds.
+              Sending the wrong asset or network will result in permanent loss of funds.
             </div>
           </>
         ) : (
-          /* No address configured */
           <div className="text-center py-8">
             <div className="text-3xl mb-3">🔗</div>
-            <div className="text-sm font-semibold mb-1" style={{ color: "var(--ink)" }}>
-              No receive address configured
-            </div>
+            <div className="text-sm font-semibold mb-1" style={{ color: "var(--ink)" }}>Address unavailable</div>
             <div className="text-[11px] mb-4" style={{ color: "var(--subtle)" }}>
-              Connect an external {adapter.name} wallet or set up a custodial wallet to get a receive address for {asset.symbol}.
+              {nativeWallet.error ?? `No address for ${asset.symbol} on ${adapter.name}.`}
             </div>
             <button onClick={onClose} className="px-6 py-2.5 rounded-xl text-xs font-semibold"
               style={{ background: "var(--surface-high)", color: "var(--subtle)" }}>Close</button>
@@ -457,6 +586,8 @@ function AssetDetailSheet({ asset, onClose }: { asset: WalletAsset; onClose: () 
   const tickers      = usePriceStore(s => s.tickers);
   const fx = useFxDisplay();
   const [modal, setModal] = useState<"send"|"receive"|"deposit"|null>(null);
+  // Single wallet instance — passed down to modals to avoid duplicate hook calls
+  const nativeWallet = useNativeWallet();
 
   const assetTxs = useMemo(() =>
     txHistory.filter(t => t.asset === asset.symbol || t.toAsset === asset.symbol)
@@ -476,10 +607,7 @@ function AssetDetailSheet({ asset, onClose }: { asset: WalletAsset; onClose: () 
           <button onClick={onClose} className="p-1.5 rounded-lg" style={{ background: "var(--surface)" }}>
             <ChevronRight size={16} style={{ color: "var(--ink)", transform: "rotate(180deg)" }} />
           </button>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-            style={{ background: `${asset.color}22`, color: asset.color }}>
-            {asset.symbol.slice(0,2)}
-          </div>
+          <CryptoIcon symbol={asset.symbol} size={32} />
           <div>
             <div className="text-sm font-bold" style={{ color: "var(--ink)" }}>{asset.name}</div>
             <div className="text-[10px]" style={{ color: "var(--subtle)" }}>{asset.symbol}</div>
@@ -549,10 +677,63 @@ function AssetDetailSheet({ asset, onClose }: { asset: WalletAsset; onClose: () 
         </div>
       </div>
 
-      {modal === "send"    && <QuickSendModal    asset={asset} onClose={() => setModal(null)} />}
-      {modal === "receive" && <QuickReceiveModal asset={asset} onClose={() => setModal(null)} />}
+      {modal === "send"    && <QuickSendModal    asset={asset} onClose={() => setModal(null)} nativeWallet={nativeWallet} />}
+      {modal === "receive" && <QuickReceiveModal asset={asset} onClose={() => setModal(null)} nativeWallet={nativeWallet} />}
       {modal === "deposit" && <QuickDepositModal asset={asset} onClose={() => setModal(null)} />}
     </>
+  );
+}
+
+// ── AssetPickerSheet ──────────────────────────────────────────────────────────
+// Shown when Send or Receive is tapped from the home page (not from an asset row).
+// User picks an asset, then the send/receive modal opens for that asset.
+function AssetPickerSheet({ mode, onPick, onClose }: {
+  mode: "send" | "receive";
+  onPick: (asset: WalletAsset) => void;
+  onClose: () => void;
+}) {
+  const assets = useWalletStore(s => s.assets);
+  const sortedAssets = useMemo(() =>
+    [...assets].sort((a, b) => b.usdValue - a.usdValue)
+  , [assets]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.75)" }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-t-2xl md:rounded-2xl"
+        style={{ background: "var(--surface)", border: "1px solid var(--border-mid)" }}
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3"
+          style={{ borderBottom: "1px solid var(--border)" }}>
+          <div className="text-sm font-bold" style={{ color: "var(--ink)" }}>
+            {mode === "send" ? "Send — Select Asset" : "Receive — Select Asset"}
+          </div>
+          <button onClick={onClose} style={{ color: "var(--subtle)" }}>✕</button>
+        </div>
+        <div className="overflow-y-auto max-h-80 pb-2">
+          {sortedAssets.map(a => (
+            <button key={a.symbol} onClick={() => onPick(a)}
+              className="w-full flex items-center gap-3 px-5 py-3 transition-colors hover:opacity-80"
+              style={{ borderBottom: "1px solid var(--border)" }}>
+              <CryptoIcon symbol={a.symbol} size={32} />
+              <div className="flex-1 text-left">
+                <div className="text-xs font-semibold" style={{ color: "var(--ink)" }}>{a.name}</div>
+                <div className="text-[10px]" style={{ color: "var(--subtle)" }}>{a.symbol} · {a.network}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs font-bold mono" style={{ color: "var(--ink)" }}>
+                  {fmtAmt(a.balance)} {a.symbol}
+                </div>
+                <div className="text-[10px]" style={{ color: "var(--subtle)" }}>
+                  ${a.usdValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              </div>
+              <ChevronRight size={14} style={{ color: "var(--subtle)", flexShrink: 0 }} />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -564,10 +745,17 @@ interface SplitBalanceCardProps {
   toggleHide: () => void;
   onDeposit: (currency: string) => void;
   onSwap: () => void;
+  onSend: () => void;
+  onReceive: () => void;
+  onBridge: () => void;
+  onExchange: () => void;
+  onP2P: () => void;
+  onDeFi: () => void;
+  onMore: () => void;
   onNgnTap?: () => void;
   onUsdTap?: () => void;
 }
-function SplitBalanceCard({ totalUsd, totalChange24h, hideBalances, toggleHide, onDeposit, onSwap, onNgnTap, onUsdTap }: SplitBalanceCardProps) {
+function SplitBalanceCard({ totalUsd, totalChange24h, hideBalances, toggleHide, onDeposit, onSwap, onSend, onReceive, onBridge, onExchange, onP2P, onDeFi, onMore, onNgnTap, onUsdTap }: SplitBalanceCardProps) {
   const fiatBalances = useFiatStore(s => s.balances);
 
   // Use walletStore country to find the right fiat balance dynamically
@@ -590,103 +778,536 @@ function SplitBalanceCard({ totalUsd, totalChange24h, hideBalances, toggleHide, 
 
   const mask = (v: string) => hideBalances ? "••••••" : v;
 
+  const ACTIONS = [
+    { icon: <Send size={18}/>,           label: "Send",        sub: "Send crypto or fiat",    fn: onSend     },
+    { icon: <Download size={18}/>,       label: "Receive",     sub: "Get crypto or fiat",     fn: onReceive  },
+    { icon: <ArrowUpDown size={18}/>,    label: "Swap",        sub: "Exchange assets",        fn: onSwap     },
+    { icon: <GitBranch size={18}/>,      label: "Bridge",      sub: "Move across chains",     fn: onBridge   },
+    { icon: <ArrowLeftRight size={18}/>, label: "Exchange",    sub: "Crypto to fiat",         fn: onExchange },
+    { icon: <Users size={18}/>,          label: "P2P",         sub: "Buy & sell crypto",      fn: onP2P      },
+    { icon: <Layers size={18}/>,         label: "DeFi",        sub: "Earn & trade onchain",   fn: onDeFi     },
+    { icon: <MoreHorizontal size={18}/>, label: "More",        sub: "Bills, shopping, airtime...", fn: onMore },
+    { icon: <Banknote size={18}/>,       label: "Deposit NGN", sub: "Fund your wallet",       fn: () => onDeposit(fiatCurrency) },
+  ];
+
   return (
-    <div className="px-4 pt-4 pb-3" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+    <div className="flex flex-col" style={{ background: "var(--bg)" }}>
 
-      {/* Controls row — eye + currency switcher */}
-      <div className="flex items-center justify-between mb-2.5">
-        <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--subtle)" }}>
-          Balances
-        </div>
-        <div className="flex items-center gap-2">
-          <CurrencySwitcher variant="fab" />
-          <button onClick={toggleHide} className="p-1.5 rounded-lg" style={{ background: "var(--surface-high)" }}>
-            {hideBalances
-              ? <EyeOff size={14} style={{ color: "var(--subtle)" }} />
-              : <Eye   size={14} style={{ color: "var(--subtle)" }} />}
-          </button>
-        </div>
-      </div>
-
-      {/* Split card */}
-      <div className="flex rounded-2xl overflow-hidden" style={{ background: "var(--surface-high)", border: "1px solid var(--border)" }}>
-
-        {/* LEFT — USD (crypto portfolio) */}
-        <div className="flex-1 px-3 py-3 min-w-0">
-          <div className="text-[10px] font-semibold mb-1.5 flex items-center gap-1" style={{ color: "var(--subtle)" }}>
-            USD
+      {/* ── Split balance card ──────────────────────────────── */}
+      <div className="glass-card glass-breathe mx-4 mt-3 rounded-2xl px-5 py-4 flex">
+        {/* Crypto Balance */}
+        <div role="button" tabIndex={0} onClick={onUsdTap} onKeyDown={e => e.key === "Enter" && onUsdTap?.()} className="flex-1 flex items-center gap-3 text-left active:opacity-70 transition-opacity cursor-pointer">
+          <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: "rgba(59,130,246,0.18)" }}>
+            <ArrowUpDown size={20} style={{ color: "#3b82f6" }} />
           </div>
-          <div className="text-lg font-bold mono leading-tight truncate" style={{ color: "var(--ink)" }}>
-            {mask(`$${totalUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
-          </div>
-          <div className="text-[10px] mono font-semibold mt-1"
-            style={{ color: totalChange24h >= 0 ? "var(--buy)" : "var(--sell)" }}>
-            {hideBalances ? "••" : `${totalChange24h >= 0 ? "+" : ""}${totalChange24h.toFixed(2)}% (24h)`}
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="w-px self-stretch" style={{ background: "var(--border)" }} />
-
-        {/* RIGHT — Local fiat (NGN etc.) — tap to open NGN account */}
-        <button onClick={onNgnTap} className="flex-1 px-3 py-3 min-w-0 text-left transition-opacity hover:opacity-80 active:opacity-60"
-          style={{ background: "transparent" }}>
-          <div className="text-[10px] font-semibold mb-1.5 flex items-center gap-1.5" style={{ color: "var(--subtle)" }}>
-            {fiatConfig && (
-              <img
-                src={`https://flagcdn.com/w20/${fiatConfig.countryCode.toLowerCase()}.png`}
-                srcSet={`https://flagcdn.com/w40/${fiatConfig.countryCode.toLowerCase()}.png 2x`}
-                alt={fiatCurrency}
-                className="w-4 h-3 rounded-[2px] object-cover shrink-0"
-                onError={e => { e.currentTarget.style.display = "none"; }}
-              />
-            )}
-            {fiatCurrency}
-          </div>
-          <div className="text-lg font-bold mono leading-tight truncate" style={{ color: "var(--ink)" }}>
-            {mask(`${fiatSymbol}${fiatBal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
-          </div>
-          <div className="text-[10px] mono mt-1" style={{ color: "var(--subtle)" }}>
-            {hideBalances ? "••" : `≈ ${fmtUsd(fiatUsdApprox)}`}
-          </div>
-          {onNgnTap && <div className="text-[9px] mt-1.5" style={{ color: "var(--accent)" }}>Tap to manage →</div>}
-        </button>
-      </div>
-
-      {/* Disclaimer */}
-      <div className="text-[9px] mt-1.5 mb-2.5" style={{ color: "var(--subtle)" }}>
-        Crypto and fiat balances are separate and never combined into a single spendable pool.
-      </div>
-
-      {/* Deposit button under right half + quick actions */}
-      <div className="flex items-center gap-2">
-        {/* Quick actions aligned to left */}
-        {[
-          { icon: <Send size={14}/>,        label: "Send",    color: "var(--sell)",   fn: () => {} },
-          { icon: <Download size={14}/>,    label: "Receive", color: "var(--buy)",    fn: () => {} },
-          { icon: <ArrowUpDown size={14}/>, label: "Swap",    color: "var(--accent)", fn: onSwap   },
-          { icon: <Plus size={14}/>,        label: "Buy",     color: "#fbbf24",       fn: () => onDeposit(fiatCurrency) },
-        ].map(({ icon, label, color, fn }) => (
-          <button key={label} onClick={fn}
-            className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-semibold"
-            style={{ background: "var(--surface-high)", color: "var(--ink)" }}>
-            <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: `${color}22`, color }}>
-              {icon}
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium" style={{ color: "var(--subtle)" }}>Crypto Balance</span>
+              <button onClick={e => { e.stopPropagation(); toggleHide(); }} className="p-0.5">
+                {hideBalances
+                  ? <EyeOff size={11} style={{ color: "var(--subtle)" }} />
+                  : <Eye    size={11} style={{ color: "var(--subtle)" }} />}
+              </button>
             </div>
-            {label}
+            <div className="text-xl font-bold mono mt-0.5" style={{ color: "var(--ink)" }}>
+              {mask(`$${totalUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
+            </div>
+            <div className="text-[10px] mono mt-0.5" style={{ color: totalChange24h < 0 ? "#ef4444" : "#22c55e" }}>
+              {hideBalances ? "•••" : `${totalChange24h >= 0 ? "+" : ""}${totalChange24h.toFixed(2)}% 24h`}
+            </div>
+          </div>
+        </div>
+
+        <div className="w-px mx-4 self-stretch" style={{ background: "var(--border)" }} />
+
+        {/* Fiat Balance */}
+        <div role="button" tabIndex={0} onClick={onNgnTap} onKeyDown={e => e.key === "Enter" && onNgnTap?.()} className="flex-1 flex items-center gap-3 text-left active:opacity-70 transition-opacity cursor-pointer">
+          <div className="w-11 h-11 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
+            style={{ background: "var(--surface-high)", border: "2px solid var(--border)" }}>
+            {fiatConfig ? (
+              <img src={`https://flagcdn.com/w40/${(fiatConfig.countryCode || "ng").toLowerCase()}.png`}
+                alt={fiatCurrency} className="w-11 h-11 object-cover"
+                onError={e => { e.currentTarget.style.display = "none"; }} />
+            ) : (
+              <Banknote size={18} style={{ color: "var(--subtle)" }} />
+            )}
+          </div>
+          <div>
+            <span className="text-xs font-medium" style={{ color: "var(--subtle)" }}>{fiatCurrency} Balance</span>
+            <div className="text-xl font-bold mono mt-0.5" style={{ color: "var(--ink)" }}>
+              {mask(`${fiatSymbol}${fiatBal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
+            </div>
+            <div className="text-[10px] mono mt-0.5" style={{ color: "var(--subtle)" }}>
+              {hideBalances ? "•••" : "0.00% 24h"}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Action grid — 2 cols, dark card style ─────────────── */}
+      <div className="grid grid-cols-2 gap-3 mx-4 mt-4">
+        {ACTIONS.map(({ icon, label, sub, fn }) => (
+          <button
+            key={label}
+            onClick={fn}
+            className="glass-card flex items-center gap-3 px-4 py-4 rounded-2xl text-left transition-all active:scale-[0.97]"
+          >
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 lg-icon-pulse"
+              style={{ background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", boxShadow: "0 4px 12px rgba(37,99,235,0.35)" }}>
+              <span style={{ color: "#fff", display: "flex" }}>{icon}</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-bold" style={{ color: "var(--ink)" }}>{label}</div>
+              <div className="text-[11px] truncate mt-0.5" style={{ color: "var(--subtle)" }}>{sub}</div>
+            </div>
+            <ChevronRight size={15} className="flex-shrink-0" style={{ color: "var(--subtle)" }} />
           </button>
         ))}
       </div>
+    </div>
+  );
+}
 
-      {/* Deposit fiat CTA — aligned under right half */}
-      <div className="flex justify-end mt-2">
-        <button
-          onClick={() => onDeposit(fiatCurrency)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-semibold"
-          style={{ background: "rgba(99,102,241,0.12)", color: "var(--accent)", border: "1px solid rgba(99,102,241,0.2)" }}>
-          <Banknote size={11} />
-          Deposit {fiatCurrency}
+// ── MoreServicesSheet ─────────────────────────────────────────────────────────
+interface ServiceItem {
+  icon: React.ReactNode;
+  label: string;
+  sub: string;
+  available: boolean;
+  action: () => void;
+}
+function MoreServicesSheet({ onClose, onNavigate, onDefiTab, fiatCurrency, onDeposit }: {
+  onClose: () => void;
+  onNavigate?: (p: import("@/App").Page) => void;
+  onDefiTab?:  (tab: string) => void;
+  fiatCurrency: string;
+  onDeposit: (cur: string) => void;
+}) {
+  const userCountry = useWalletStore(s => s.userCountry);
+
+  const sections: { title: string; items: ServiceItem[] }[] = [
+    {
+      title: "Mobile & Utilities",
+      items: [
+        {
+          icon: <Smartphone size={16}/>,
+          label: "Airtime",
+          sub: "Top up any mobile number",
+          available: ["NG","GH","KE","ZA","TZ","UG"].includes(userCountry),
+          action: () => { /* Reloadly integration — requires RELOADLY_API_KEY */ },
+        },
+        {
+          icon: <Wifi size={16}/>,
+          label: "Data Bundle",
+          sub: "Mobile data top-up",
+          available: ["NG","GH","KE","ZA"].includes(userCountry),
+          action: () => { /* Reloadly */ },
+        },
+        {
+          icon: <Zap size={16}/>,
+          label: "Electricity",
+          sub: "Prepaid & postpaid meter",
+          available: ["NG","GH","KE","ZA","UG"].includes(userCountry),
+          action: () => { /* Reloadly utility */ },
+        },
+        {
+          icon: <Tv size={16}/>,
+          label: "Cable / Streaming",
+          sub: "DSTV, GOtv, Startimes",
+          available: ["NG","GH","KE","ZA"].includes(userCountry),
+          action: () => { /* Reloadly */ },
+        },
+        {
+          icon: <Wifi size={16}/>,
+          label: "Internet",
+          sub: "Fibre, broadband top-up",
+          available: ["NG","GH","KE"].includes(userCountry),
+          action: () => { /* Reloadly */ },
+        },
+      ],
+    },
+    {
+      title: "Shopping & Travel",
+      items: [
+        {
+          icon: <ShoppingCart size={16}/>,
+          label: "Shopping",
+          sub: "Pay merchants with crypto",
+          available: false,
+          action: () => { /* Shopify / Stripe integration */ },
+        },
+        {
+          icon: <Plane size={16}/>,
+          label: "Flights",
+          sub: "Book tickets — Duffel / Amadeus",
+          available: false,
+          action: () => { /* Duffel API — requires DUFFEL_API_KEY */ },
+        },
+        {
+          icon: <Hotel size={16}/>,
+          label: "Hotels",
+          sub: "Reserve accommodations",
+          available: false,
+          action: () => { /* Booking.com API */ },
+        },
+        {
+          icon: <Gift size={16}/>,
+          label: "Gift Cards",
+          sub: "Buy gift cards with crypto",
+          available: false,
+          action: () => { /* Reloadly gift cards */ },
+        },
+      ],
+    },
+    {
+      title: "Payments",
+      items: [
+        {
+          icon: <GraduationCap size={16}/>,
+          label: "School Fees",
+          sub: "JAMB, WAEC, NECO",
+          available: ["NG","GH","KE"].includes(userCountry),
+          action: () => { /* Remita / bank integration */ },
+        },
+        {
+          icon: <Gamepad2 size={16}/>,
+          label: "Betting Deposit",
+          sub: "Fund sports betting accounts",
+          available: ["NG","GH","KE","ZA"].includes(userCountry),
+          action: () => { /* Flutterwave / Paystack */ },
+        },
+        {
+          icon: <CreditCard size={16}/>,
+          label: "Trading Account",
+          sub: "Fund MT4/MT5, Exness, etc.",
+          available: false,
+          action: () => { /* Broker API */ },
+        },
+        {
+          icon: <Repeat2 size={16}/>,
+          label: "Subscriptions",
+          sub: "Netflix, Spotify, iCloud",
+          available: false,
+          action: () => { /* Virtual card / Stripe */ },
+        },
+        {
+          icon: <Building2 size={16}/>,
+          label: "Merchant Payment",
+          sub: "Pay any business",
+          available: false,
+          action: () => { /* Paystack / Stripe */ },
+        },
+      ],
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ background: "rgba(0,0,0,0.75)" }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-t-2xl overflow-hidden flex flex-col"
+        style={{ background: "var(--surface)", border: "1px solid var(--border-mid)", maxHeight: "85vh" }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0"
+          style={{ borderBottom: "1px solid var(--border)" }}>
+          <div>
+            <div className="text-sm font-bold" style={{ color: "var(--ink)" }}>More Services</div>
+            <div className="text-[10px] mt-0.5" style={{ color: "var(--subtle)" }}>
+              Pay with your in-app wallet · {fiatCurrency} · {userCountry}
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg" style={{ background: "var(--surface-high)" }}>
+            <X size={14} style={{ color: "var(--subtle)" }} />
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div className="overflow-y-auto flex-1 pb-6">
+          {sections.map(section => (
+            <div key={section.title}>
+              <div className="px-5 pt-4 pb-2 text-[10px] font-semibold uppercase tracking-wide"
+                style={{ color: "var(--subtle)" }}>
+                {section.title}
+              </div>
+              <div className="grid grid-cols-1 divide-y" style={{ borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
+                {section.items.map(item => (
+                  <button
+                    key={item.label}
+                    onClick={item.available ? item.action : undefined}
+                    className="flex items-center gap-3 px-5 py-3 text-left transition-opacity"
+                    style={{
+                      opacity: item.available ? 1 : 0.45,
+                      cursor: item.available ? "pointer" : "default",
+                      borderBottom: "1px solid var(--border)",
+                    }}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: "var(--surface-high)", color: "var(--accent)" }}>
+                      {item.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold" style={{ color: "var(--ink)" }}>{item.label}</div>
+                      <div className="text-[10px]" style={{ color: "var(--subtle)" }}>{item.sub}</div>
+                    </div>
+                    {item.available ? (
+                      <ChevronRight size={14} style={{ color: "var(--subtle)", flexShrink: 0 }} />
+                    ) : (
+                      <span className="text-[9px] px-2 py-0.5 rounded-full flex-shrink-0"
+                        style={{ background: "var(--surface-high)", color: "var(--subtle)" }}>
+                        Soon
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Key requirement note */}
+          <div className="mx-5 mt-4 px-3 py-2.5 rounded-xl text-[10px]"
+            style={{ background: "rgba(251,191,36,0.08)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.15)" }}>
+            Services marked "Soon" require API keys: Reloadly (airtime/bills), Duffel (flights),
+            Flutterwave/Paystack (payments). Configure them in .env to activate.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── AddAssetSheet ─────────────────────────────────────────────────────────────
+// Full catalogue of supported assets the user can add/remove from their wallet
+const ALL_ADDABLE = Object.values(CRYPTO_ASSETS).map(a => ({
+  symbol:   a.symbol,
+  name:     a.name,
+  color:    a.color,
+  decimals: a.symbol === "BTC" ? 8 : a.symbol === "SOL" ? 9 : a.symbol === "USDC" || a.symbol === "USDT" ? 6 : 18,
+  type:     (a.symbol === "USDC" || a.symbol === "USDT" || a.symbol === "DAI") ? "stablecoin" as const
+            : "crypto" as const,
+  network:  a.networks[0] ?? "ethereum",
+  networks: a.networks,
+}));
+
+function AddAssetSheet({ onClose }: { onClose: () => void }) {
+  const assets     = useWalletStore(s => s.assets);
+  const addAsset   = useWalletStore(s => s.addAsset);
+  const removeAsset = useWalletStore(s => s.removeAsset);
+  const prices     = useWalletStore(s => s._livePrices);
+  const [q, setQ] = useState("");
+
+  const owned = new Set(assets.map(a => a.symbol));
+
+  const filtered = useMemo(() => {
+    const lower = q.toLowerCase().trim();
+    if (!lower) return ALL_ADDABLE;
+    return ALL_ADDABLE.filter(a =>
+      a.symbol.toLowerCase().includes(lower) || a.name.toLowerCase().includes(lower)
+    );
+  }, [q]);
+
+  function handleToggle(a: typeof ALL_ADDABLE[number]) {
+    if (owned.has(a.symbol)) {
+      removeAsset(a.symbol);
+    } else {
+      addAsset({
+        symbol:   a.symbol,
+        name:     a.name,
+        balance:  0,
+        decimals: a.decimals,
+        color:    a.color,
+        type:     a.type,
+        network:  a.networks[0] ?? "ethereum",
+        address:  "",
+        change24h: 0,
+      });
+    }
+  }
+
+  const px = (sym: string) => prices[sym] ?? 0;
+  const walletAsset = (sym: string) => assets.find(a => a.symbol === sym);
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "var(--bg)" }}>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+        <button onClick={onClose} className="p-1.5 rounded-lg" style={{ background: "var(--surface)" }}>
+          <X size={16} style={{ color: "var(--ink)" }} />
         </button>
+        <span className="font-bold text-base" style={{ color: "var(--ink)" }}>Add Assets</span>
+        <span className="ml-auto text-xs" style={{ color: "var(--subtle)" }}>{assets.length} in wallet</span>
+      </div>
+
+      {/* Search */}
+      <div className="px-4 py-2.5 border-b" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "var(--surface)" }}>
+          <Search size={14} style={{ color: "var(--subtle)" }} />
+          <input
+            autoFocus
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Search by name or symbol…"
+            className="flex-1 bg-transparent text-sm outline-none"
+            style={{ color: "var(--ink)" }}
+          />
+          {q && (
+            <button onClick={() => setQ("")}><X size={12} style={{ color: "var(--subtle)" }} /></button>
+          )}
+        </div>
+      </div>
+
+      {/* Token list */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Already in wallet section */}
+        {!q && (
+          <div className="px-4 pt-3 pb-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--subtle)" }}>
+              In your wallet
+            </span>
+          </div>
+        )}
+        {filtered.map(a => {
+          const inWallet  = owned.has(a.symbol);
+          const wa        = walletAsset(a.symbol);
+          const price     = px(a.symbol);
+          const hasBalance = (wa?.balance ?? 0) > 0;
+          // Split: show owned first when not searching
+          if (!q && !inWallet) return null;
+          return (
+            <div key={a.symbol}
+              className="flex items-center gap-3 px-4 py-3 border-b"
+              style={{ borderColor: "var(--border)" }}>
+              <CryptoIcon symbol={a.symbol} size={36} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-bold" style={{ color: "var(--ink)" }}>{a.symbol}</span>
+                  {inWallet && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
+                    style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e" }}>Added</span>}
+                </div>
+                <div className="text-[11px]" style={{ color: "var(--subtle)" }}>
+                  {a.name}
+                  {price > 0 && <span className="ml-1">${price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 5 : 2 })}</span>}
+                </div>
+              </div>
+              {inWallet && wa && (
+                <div className="text-right mr-2">
+                  <div className="text-xs font-semibold" style={{ color: "var(--ink)" }}>
+                    {wa.balance > 0 ? wa.balance.toLocaleString(undefined, { maximumFractionDigits: 6 }) : "0"}
+                  </div>
+                  {price > 0 && wa.balance > 0 && (
+                    <div className="text-[10px]" style={{ color: "var(--subtle)" }}>
+                      ${(wa.balance * price).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </div>
+                  )}
+                </div>
+              )}
+              <button
+                onClick={() => handleToggle(a)}
+                disabled={inWallet && hasBalance}
+                title={inWallet && hasBalance ? "Cannot remove — balance > 0" : inWallet ? "Remove from wallet" : "Add to wallet"}
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
+                style={{
+                  background: inWallet ? (hasBalance ? "var(--surface)" : "rgba(239,68,68,0.12)") : "rgba(34,197,94,0.15)",
+                  border: `1px solid ${inWallet ? (hasBalance ? "var(--border)" : "rgba(239,68,68,0.3)") : "rgba(34,197,94,0.3)"}`,
+                  opacity: inWallet && hasBalance ? 0.4 : 1,
+                  cursor: inWallet && hasBalance ? "not-allowed" : "pointer",
+                }}>
+                {inWallet
+                  ? (hasBalance ? <Check size={14} style={{ color: "var(--subtle)" }} /> : <Trash2 size={13} style={{ color: "#ef4444" }} />)
+                  : <Plus size={14} style={{ color: "#22c55e" }} />}
+              </button>
+            </div>
+          );
+        })}
+
+        {/* Available to add section */}
+        {!q && (
+          <>
+            <div className="px-4 pt-3 pb-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--subtle)" }}>
+                Available to add
+              </span>
+            </div>
+            {ALL_ADDABLE.filter(a => !owned.has(a.symbol)).map(a => {
+              const price = px(a.symbol);
+              return (
+                <div key={a.symbol}
+                  className="flex items-center gap-3 px-4 py-3 border-b"
+                  style={{ borderColor: "var(--border)" }}>
+                  <CryptoIcon symbol={a.symbol} size={36} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold" style={{ color: "var(--ink)" }}>{a.symbol}</div>
+                    <div className="text-[11px]" style={{ color: "var(--subtle)" }}>
+                      {a.name}
+                      {price > 0 && <span className="ml-1">${price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 5 : 2 })}</span>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleToggle(a)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)" }}>
+                    <Plus size={14} style={{ color: "#22c55e" }} />
+                  </button>
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {/* Search: show all filtered */}
+        {q && filtered.map(a => {
+          const inWallet  = owned.has(a.symbol);
+          const wa        = walletAsset(a.symbol);
+          const price     = px(a.symbol);
+          const hasBalance = (wa?.balance ?? 0) > 0;
+          return (
+            <div key={a.symbol}
+              className="flex items-center gap-3 px-4 py-3 border-b"
+              style={{ borderColor: "var(--border)" }}>
+              <CryptoIcon symbol={a.symbol} size={36} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-bold" style={{ color: "var(--ink)" }}>{a.symbol}</span>
+                  {inWallet && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
+                    style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e" }}>Added</span>}
+                </div>
+                <div className="text-[11px]" style={{ color: "var(--subtle)" }}>
+                  {a.name}
+                  {price > 0 && <span className="ml-1">${price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 5 : 2 })}</span>}
+                </div>
+              </div>
+              {inWallet && wa && wa.balance > 0 && (
+                <div className="text-right mr-2">
+                  <div className="text-xs font-semibold" style={{ color: "var(--ink)" }}>
+                    {wa.balance.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={() => handleToggle(a)}
+                disabled={inWallet && hasBalance}
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
+                style={{
+                  background: inWallet ? (hasBalance ? "var(--surface)" : "rgba(239,68,68,0.12)") : "rgba(34,197,94,0.15)",
+                  border: `1px solid ${inWallet ? (hasBalance ? "var(--border)" : "rgba(239,68,68,0.3)") : "rgba(34,197,94,0.3)"}`,
+                  opacity: inWallet && hasBalance ? 0.4 : 1,
+                  cursor: inWallet && hasBalance ? "not-allowed" : "pointer",
+                }}>
+                {inWallet
+                  ? (hasBalance ? <Check size={14} style={{ color: "var(--subtle)" }} /> : <Trash2 size={13} style={{ color: "#ef4444" }} />)
+                  : <Plus size={14} style={{ color: "#22c55e" }} />}
+              </button>
+            </div>
+          );
+        })}
+
+        {filtered.length === 0 && (
+          <div className="py-16 text-center" style={{ color: "var(--subtle)" }}>
+            <Search size={28} className="mx-auto mb-2 opacity-30" />
+            <div className="text-sm">No assets found for "{q}"</div>
+          </div>
+        )}
+        <div className="h-8" />
       </div>
     </div>
   );
@@ -698,43 +1319,34 @@ interface WalletPageProps {
   onDefiTab?:  (tab: string) => void;
 }
 export function WalletPage({ onNavigate, onDefiTab }: WalletPageProps = {}) {
-  const assets         = useWalletStore(s => s.assets);
-  const txHistory      = useWalletStore(s => s.txHistory);
   const totalUsd       = useWalletStore(s => s.totalUsd);
   const totalChange24h = useWalletStore(s => s.totalChange24h);
   const hideBalances   = useWalletStore(s => s.hideBalances);
   const toggleHide     = useWalletStore(s => s.toggleHide);
   const primaryFiat    = useWalletStore(s => s.primaryFiat);
-  const alerts         = useWalletStore(s => s.alerts);
-  const markAlertsRead = useWalletStore(s => s.markAlertsRead);
+
   const [selectedAsset, setSelectedAsset] = useState<WalletAsset|null>(null);
-  const [tab, setTab] = useState<"assets"|"history"|"alerts"|"market">("assets");
+
   const [swapOpen, setSwapOpen] = useState(false);
   const [depositCurrency, setDepositCurrency] = useState<string|null>(null);
   const [ngnOpen, setNgnOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [bridgeOpen, setBridgeOpen] = useState(false);
+  const [exchangeOpen, setExchangeOpen] = useState(false);
   const [usdOpen, setUsdOpen] = useState(false);
-  const [cryptoDisplay, setCryptoDisplay] = useState<"USD"|"LOCAL">("USD");
-  const unreadAlerts = alerts.filter(a => !a.read).length;
+  const [addAssetOpen, setAddAssetOpen] = useState(false);
 
-  const tickers      = usePriceStore(s => s.tickers);
-  const fxPage       = useFxDisplay();
 
-  const sortedAssets = useMemo(() =>
-    [...assets].sort((a,b) => b.usdValue - a.usdValue)
-  , [assets]);
 
-  // Market movers for the home-style strip (top 6 by abs % change)
-  const movers = useMemo(() => {
-    return Object.entries(tickers)
-      .filter(([, t]) => t && typeof t.priceChangePct === "number")
-      .sort(([, a], [, b]) => Math.abs(b.priceChangePct) - Math.abs(a.priceChangePct))
-      .slice(0, 8)
-      .map(([key, t]) => ({ key, ticker: t }));
-  }, [tickers]);
+  // Home-level Send/Receive: asset picker → modal
+  // nativeWallet lifted here so it's one instance across the whole page
+  const nativeWallet = useNativeWallet();
+  const [homeModal, setHomeModal] = useState<{ mode: "send"|"receive"; asset: WalletAsset } | null>(null);
+  const [pickerMode, setPickerMode] = useState<"send"|"receive"|null>(null);
 
-  const recentTx = useMemo(() =>
-    [...txHistory].sort((a,b) => b.createdAt - a.createdAt).slice(0, 100)
-  , [txHistory]);
+
+
+
 
   if (selectedAsset) {
     return <AssetDetailSheet asset={selectedAsset} onClose={() => setSelectedAsset(null)} />;
@@ -744,7 +1356,7 @@ export function WalletPage({ onNavigate, onDefiTab }: WalletPageProps = {}) {
     return (
       <CryptoDashboard
         onClose={() => setUsdOpen(false)}
-        onNavigate={onNavigate}
+        onNavigate={onNavigate ? (p) => onNavigate(p as import("@/App").Page) : undefined}
         onDefiTab={onDefiTab}
       />
     );
@@ -761,189 +1373,60 @@ export function WalletPage({ onNavigate, onDefiTab }: WalletPageProps = {}) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden" style={{ background: "var(--bg)" }}>
-      {/* ── Split balance card (USD | NGN) ── */}
-      <SplitBalanceCard
-        totalUsd={totalUsd}
-        totalChange24h={totalChange24h}
-        hideBalances={hideBalances}
-        toggleHide={toggleHide}
-        onDeposit={(cur) => setDepositCurrency(cur || primaryFiat)}
-        onSwap={() => setSwapOpen(true)}
-        onNgnTap={() => setNgnOpen(true)}
-        onUsdTap={() => setUsdOpen(true)}
-      />
+      <div className="flex-1 overflow-y-auto pb-6">
+        <SplitBalanceCard
+          totalUsd={totalUsd}
+          totalChange24h={totalChange24h}
+          hideBalances={hideBalances}
+          toggleHide={toggleHide}
+          onDeposit={(cur) => setDepositCurrency(cur || primaryFiat)}
+          onSwap={() => setSwapOpen(true)}
+          onSend={() => setPickerMode("send")}
+          onReceive={() => setPickerMode("receive")}
+          onBridge={() => setBridgeOpen(true)}
+          onExchange={() => setExchangeOpen(true)}
+          onP2P={() => onNavigate?.("p2p")}
+          onDeFi={() => onNavigate?.("defi")}
+          onMore={() => setMoreOpen(true)}
+          onNgnTap={() => setNgnOpen(true)}
+          onUsdTap={() => setUsdOpen(true)}
+        />
 
-      {/* ── Crypto section label ── */}
-      <div className="px-4 pt-2 pb-1 flex items-center justify-between" style={{ background: "var(--bg)" }}>
-        <div className="flex items-center gap-1.5">
-          <Coins size={12} style={{ color: "var(--accent)" }} />
-          <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--subtle)" }}>
-            Crypto Assets
-          </span>
-        </div>
-        {/* Currency display toggle */}
-        <div className="flex items-center rounded-full overflow-hidden border text-[10px] font-semibold"
-          style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-          <button
-            onClick={() => setCryptoDisplay("USD")}
-            className="px-2.5 py-0.5 transition-colors"
-            style={{
-              background: cryptoDisplay === "USD" ? "var(--accent)" : "transparent",
-              color: cryptoDisplay === "USD" ? "#fff" : "var(--subtle)",
-            }}>
-            $ USD
-          </button>
-          <button
-            onClick={() => setCryptoDisplay("LOCAL")}
-            className="px-2.5 py-0.5 transition-colors"
-            style={{
-              background: cryptoDisplay === "LOCAL" ? "var(--accent)" : "transparent",
-              color: cryptoDisplay === "LOCAL" ? "#fff" : "var(--subtle)",
-            }}>
-            {fxPage.symbol} {fxPage.currency}
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-        {(["assets","market","history","alerts"] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className="flex-1 py-2.5 text-xs font-semibold relative capitalize transition-colors"
-            style={{ color: tab === t ? "var(--accent)" : "var(--subtle)" }}>
-            {t}{t === "alerts" && unreadAlerts > 0 && (
-              <span className="ml-1 px-1 py-0.5 rounded-full text-[9px] font-bold"
-                style={{ background: "var(--sell)", color: "#fff" }}>{unreadAlerts}</span>
-            )}
-            {tab === t && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: "var(--accent)" }} />
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        {tab === "assets" && (
-          <div>
-            <div className="px-4 py-2 flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--subtle)" }}>
-                Assets ({sortedAssets.length})
-              </span>
-              <div className="flex items-center gap-1">
-                <Coins size={11} style={{ color: "var(--subtle)" }} />
-                <span className="text-[10px]" style={{ color: "var(--subtle)" }}>Crypto</span>
-              </div>
+        {/* ── P2P Quick Swap promo banner ───────────────────── */}
+        <button
+          onClick={() => onNavigate?.("p2p")}
+          className="glass-card mx-4 mt-4 w-[calc(100%-2rem)] flex items-center gap-4 px-5 py-4 rounded-2xl text-left transition-all active:scale-[0.99]"
+        >
+          {/* Dual-coin icon */}
+          <div className="relative flex-shrink-0 w-14 h-12">
+            <div className="absolute left-0 bottom-0 w-9 h-9 rounded-full flex items-center justify-center border-2"
+              style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)", borderColor: "rgba(255,255,255,0.8)", boxShadow: "0 2px 8px rgba(37,99,235,0.4)" }}>
+              <span className="text-[11px] font-black" style={{ color: "#fff" }}>$</span>
             </div>
-            {sortedAssets.map(a => <AssetRow key={a.symbol} a={a} onSelect={setSelectedAsset} displayMode={cryptoDisplay} />)}
-            <div className="px-4 py-3 text-center">
-              <button className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
-                + Add asset
-              </button>
+            <div className="absolute right-0 bottom-0 w-9 h-9 rounded-full flex items-center justify-center border-2"
+              style={{ background: "linear-gradient(135deg,#16a34a,#15803d)", borderColor: "rgba(255,255,255,0.8)", boxShadow: "0 2px 8px rgba(22,163,74,0.4)" }}>
+              <span className="text-[11px] font-black" style={{ color: "#fff" }}>₦</span>
             </div>
-
-            {/* ── Market Movers strip ── */}
-            {movers.length > 0 && (
-              <div className="px-4 pb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--subtle)" }}>
-                    Market Movers
-                  </span>
-                  {onNavigate && (
-                    <button onClick={() => { onDefiTab?.("swap"); onNavigate("defi"); }}
-                      className="text-[10px] flex items-center gap-0.5" style={{ color: "var(--accent)" }}>
-                      Trade <ChevronRight size={10} />
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {movers.map(({ key, ticker }) => {
-                    const sym = key.replace("-USD","");
-                    const up  = ticker.priceChangePct >= 0;
-                    return (
-                      <div key={key} className="rounded-lg p-2.5 flex items-center justify-between"
-                        style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-                        <div>
-                          <div className="text-xs font-bold" style={{ color: "var(--ink)" }}>{sym}</div>
-                          <div className="text-[10px]" style={{ color: "var(--subtle)" }}>
-                            ${ticker.lastPrice.toLocaleString(undefined, { maximumFractionDigits: ticker.lastPrice < 1 ? 5 : 2 })}
-                          </div>
-                        </div>
-                        <div className={`flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded`}
-                          style={{ background: up ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
-                                   color: up ? "#22c55e" : "#ef4444" }}>
-                          {up ? <TrendingUp size={9}/> : <TrendingDown size={9}/>}
-                          {up ? "+" : ""}{ticker.priceChangePct.toFixed(2)}%
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === "market" && (
-          <div className="p-4 flex flex-col gap-4">
-            <LivePriceStrip />
-            <P2PRateBar />
-          </div>
-        )}
-
-        {tab === "history" && (
-          <div>
-            <div className="px-4 py-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--subtle)" }}>
-                All Transactions ({recentTx.length})
-              </span>
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full flex items-center justify-center"
+              style={{ background: "#22c55e" }}>
+              <ArrowUpDown size={10} style={{ color: "#fff" }} />
             </div>
-            {recentTx.length === 0 ? (
-              <div className="text-center py-12">
-                <Clock size={28} className="mx-auto mb-3" style={{ color: "var(--subtle)" }} />
-                <div className="text-sm font-semibold" style={{ color: "var(--ink)" }}>No transactions yet</div>
-                <div className="text-xs mt-1" style={{ color: "var(--subtle)" }}>Your activity will appear here</div>
-              </div>
-            ) : (
-              recentTx.map(tx => <TxRow key={tx.id} tx={tx} />)
-            )}
           </div>
-        )}
-
-        {tab === "alerts" && (
-          <div>
-            <div className="px-4 py-2 flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--subtle)" }}>
-                Notifications ({alerts.length})
-              </span>
-              {unreadAlerts > 0 && (
-                <button onClick={markAlertsRead}
-                  className="text-[10px]" style={{ color: "var(--accent)" }}>Mark all read</button>
-              )}
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-sm" style={{ color: "var(--ink)" }}>P2P Quick Swap</div>
+            <div className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--subtle)" }}>
+              Convert between crypto and Naira instantly at the best rates.
             </div>
-            {alerts.length === 0 ? (
-              <div className="text-center py-12">
-                <Banknote size={28} className="mx-auto mb-3" style={{ color: "var(--subtle)" }} />
-                <div className="text-sm font-semibold" style={{ color: "var(--ink)" }}>No alerts</div>
-              </div>
-            ) : (
-              [...alerts].sort((a,b)=>b.ts-a.ts).map(alert => (
-                <div key={alert.id}
-                  className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:opacity-80"
-                  style={{ borderBottom:"1px solid var(--border)", opacity: alert.read ? 0.6 : 1 }}
-                  onClick={markAlertsRead}>
-                  <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
-                    style={{ background: !alert.read ? (alert.type === "error" ? "var(--sell)" : alert.type === "success" ? "var(--buy)" : "var(--accent)") : "var(--surface-high)" }} />
-                  <div className="flex-1">
-                    <div className="text-xs" style={{ color: "var(--ink)" }}>{alert.msg}</div>
-                    <div className="text-[10px] mt-0.5" style={{ color: "var(--subtle)" }}>{fmtTs(alert.ts)}</div>
-                  </div>
-                </div>
-              ))
-            )}
           </div>
-        )}
-      </div>
+          <div className="flex items-center gap-1 px-3 py-1.5 rounded-full flex-shrink-0"
+            style={{ background: "rgba(37,99,235,0.15)", border: "1px solid rgba(59,130,246,0.3)" }}>
+            <span className="text-xs font-semibold" style={{ color: "#60a5fa" }}>Swap Now</span>
+            <ChevronRight size={12} style={{ color: "#60a5fa" }} />
+          </div>
+        </button>
+
+
+      </div>{/* end scrollable */}
 
       {swapOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center"
@@ -961,6 +1444,71 @@ export function WalletPage({ onNavigate, onDefiTab }: WalletPageProps = {}) {
         <BankDepositModal
           defaultCurrency={depositCurrency || undefined}
           onClose={() => setDepositCurrency(null)}
+        />
+      )}
+
+      {/* Asset picker — opened by home-level Send / Receive buttons */}
+      {pickerMode && !homeModal && (
+        <AssetPickerSheet
+          mode={pickerMode}
+          onPick={(asset) => {
+            setHomeModal({ mode: pickerMode, asset });
+            setPickerMode(null);
+          }}
+          onClose={() => setPickerMode(null)}
+        />
+      )}
+
+      {/* Send modal — home level */}
+      {homeModal?.mode === "send" && (
+        <QuickSendModal
+          asset={homeModal.asset}
+          nativeWallet={nativeWallet}
+          onClose={() => setHomeModal(null)}
+        />
+      )}
+
+      {/* Receive modal — home level */}
+      {homeModal?.mode === "receive" && (
+        <QuickReceiveModal
+          asset={homeModal.asset}
+          nativeWallet={nativeWallet}
+          onClose={() => setHomeModal(null)}
+        />
+      )}
+
+      {/* Bridge overlay */}
+      {bridgeOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "var(--bg)" }}>
+          <div className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0"
+            style={{ borderColor: "var(--border)" }}>
+            <button onClick={() => setBridgeOpen(false)}
+              className="w-8 h-8 rounded-full flex items-center justify-center"
+              style={{ background: "var(--surface-high)" }}>
+              <X size={16} style={{ color: "var(--ink)" }} />
+            </button>
+            <span className="font-semibold text-sm" style={{ color: "var(--ink)" }}>Bridge</span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <MultiProtocolBridge nativeWallet={nativeWallet} />
+          </div>
+        </div>
+      )}
+
+      {/* Exchange overlay */}
+      {exchangeOpen && <ExchangeScreen onClose={() => setExchangeOpen(false)} />}
+
+      {/* Add asset sheet */}
+      {addAssetOpen && <AddAssetSheet onClose={() => setAddAssetOpen(false)} />}
+
+      {/* More services sheet */}
+      {moreOpen && (
+        <MoreServicesSheet
+          onClose={() => setMoreOpen(false)}
+          onNavigate={onNavigate}
+          onDefiTab={onDefiTab}
+          fiatCurrency={primaryFiat}
+          onDeposit={(cur) => { setMoreOpen(false); setDepositCurrency(cur || primaryFiat); }}
         />
       )}
     </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, Component } from "react";
 import type { ReactNode } from "react";
-import { Bot, Zap, ArrowUpDown, Wallet, Users } from "lucide-react";
+import { Bot, Zap } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   constructor(props: { children: ReactNode }) { super(props); this.state = { error: null }; }
@@ -8,12 +9,12 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   render() {
     if (this.state.error) return (
       <div style={{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-        height:"100vh",background:"#0d1117",color:"#e2e8f0",fontFamily:"monospace",gap:12 }}>
+        height:"100vh",background:"#f0f2f8",color:"#0f172a",fontFamily:"'DM Sans',sans-serif",gap:12 }}>
         <div style={{ fontSize:28 }}>⚠</div>
-        <div style={{ fontSize:14,color:"#f87171" }}>Something went wrong</div>
+        <div style={{ fontSize:14,color:"#dc2626" }}>Something went wrong</div>
         <div style={{ fontSize:11,color:"#64748b",maxWidth:400,textAlign:"center" }}>{this.state.error.message}</div>
         <button onClick={() => { this.setState({ error:null }); window.location.reload(); }}
-          style={{ marginTop:8,padding:"6px 16px",borderRadius:8,background:"#1e3a5f",color:"#60a5fa",border:"1px solid #2563eb",cursor:"pointer",fontSize:12 }}>
+          style={{ marginTop:8,padding:"6px 16px",borderRadius:8,background:"#2563eb",color:"#fff",border:"none",cursor:"pointer",fontSize:12 }}>
           Reload
         </button>
       </div>
@@ -24,19 +25,21 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 
 import { usePriceStore }       from "./store/priceStore";
 import { useWalletStore }      from "./store/walletStore";
+import { useSharedWallet }     from "./context/NativeWalletContext";
 import { TopNav }              from "./components/TopNav";
 import { SettingsModal }       from "./components/SettingsModal";
 import { NotificationsPanel }  from "./components/NotificationsPanel";
 import { PortfolioPage }       from "./pages/PortfolioPage";
 import { DeFiPage }            from "./pages/DeFiPage";
 import { AIAgentPage }         from "./pages/AIAgentPage";
+import { VaultDashboard }      from "./pages/VaultDashboard";
 import { SubaccountsPage }     from "./pages/SubaccountsPage";
 import { ReferralsPage }       from "./pages/ReferralsPage";
 import { WalletPage }          from "./pages/WalletPage";
 import { P2PPage }             from "./pages/P2PPage";
 import { CountryOnboarding }   from "./components/CountryOnboarding";
 
-export type Page = "defi" | "p2p" | "portfolio" | "wallet" | "ai" | "subaccounts" | "referrals";
+export type Page = "defi" | "p2p" | "portfolio" | "wallet" | "ai" | "subaccounts" | "referrals" | "vault";
 
 /* ── Floating Element FAB ─────────────────────────────────────────────────── */
 function FloatingElement({ activePage, onNavigate }: { activePage: Page; onNavigate: (p: Page) => void }) {
@@ -51,7 +54,7 @@ function FloatingElement({ activePage, onNavigate }: { activePage: Page; onNavig
       onClick={() => onNavigate("ai")}
       title="Open Element AI Agent"
       style={{
-        position:"fixed", bottom:76, right:20, zIndex:9000,
+        position:"fixed", bottom:24, right:20, zIndex:9000,
         width:52, height:52, borderRadius:"50%",
         background:"linear-gradient(135deg,#7c3aed,#4f46e5)",
         boxShadow: pulse
@@ -66,7 +69,8 @@ function FloatingElement({ activePage, onNavigate }: { activePage: Page; onNavig
       onMouseLeave={e => { (e.currentTarget).style.transform=pulse?"scale(1.08)":"scale(1)"; }}
     >
       <Bot size={20}/>
-      <span style={{ fontSize:8, fontWeight:700, letterSpacing:"0.04em", lineHeight:1 }}>Element</span>
+      {/* green online dot */}
+      <div style={{ position:"absolute", top:4, right:4, width:9, height:9, borderRadius:"50%", background:"#22c55e", border:"2px solid #4f46e5" }} />
     </button>
   );
 }
@@ -84,47 +88,13 @@ function SignalBadge() {
   );
 }
 
-/* ── Mobile bottom tab bar ────────────────────────────────────────────────── */
-const BOTTOM_TABS: { id: Page; label: string; icon: ReactNode }[] = [
-  { id:"wallet",    label:"Wallet",    icon:<Wallet size={20}/> },
-  { id:"p2p",       label:"P2P",       icon:<Users size={20}/> },
-  { id:"defi",      label:"DeFi",      icon:<ArrowUpDown size={20}/> },
-  { id:"ai",        label:"Element",   icon:<Bot size={20}/> },
-];
-
-function BottomTabBar({ active, onNavigate }: { active: Page; onNavigate: (p: Page) => void }) {
-  return (
-    <div
-      className="md:hidden flex items-center shrink-0"
-      style={{
-        borderTop:"1px solid var(--border)",
-        background:"var(--surface)",
-        paddingBottom:"env(safe-area-inset-bottom, 0px)",
-        zIndex:200,
-      }}
-    >
-      {BOTTOM_TABS.map(t => (
-        <button
-          key={t.id}
-          onClick={() => onNavigate(t.id)}
-          className="flex-1 flex flex-col items-center gap-0.5 py-2 transition-colors"
-          style={{
-            color: active === t.id ? "var(--accent)" : "var(--subtle)",
-            background: active === t.id ? "rgba(59,130,246,0.06)" : "transparent",
-          }}
-        >
-          {t.icon}
-          <span style={{ fontSize:9, fontWeight:600 }}>{t.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
 
 /* ── Main App ─────────────────────────────────────────────────────────────── */
 export default function App() {
-  const [theme,        setTheme]        = useState<"dark"|"light">("dark");
-  const [activePage,   setActivePage]   = useState<Page>("wallet");
+  const [theme] = useState<"dark"|"light">("light");
+  const [pageStack,    setPageStack]    = useState<Page[]>(["wallet"]);
+  const activePage = pageStack[pageStack.length - 1];
+  const canGoBack  = pageStack.length > 1;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notifOpen,    setNotifOpen]    = useState(false);
   const [notifCount]                   = useState(3);
@@ -135,11 +105,16 @@ export default function App() {
   const tickers       = usePriceStore(s => s.tickers);
   const refreshPrices = useWalletStore(s => s.refreshPrices);
 
+  // Native wallet — initialized once at app root so all pages share the same instance
+  const { walletId } = useSharedWallet();
+
   // Start price feed on mount
   useEffect(() => {
     const stop = startFeed();
     return stop;
   }, [startFeed]);
+
+  // Balance sync is handled by NativeWalletProvider — no duplicate interval here.
 
   // Sync live prices into wallet store every 10 s
   useEffect(() => {
@@ -156,56 +131,123 @@ export default function App() {
     document.documentElement.className = theme;
   }, [theme]);
 
-  function navigate(p: Page) { setActivePage(p); }
+  function navigate(p: Page) {
+    setPageStack(s => {
+      // Don't push a duplicate of the current top
+      if (s[s.length - 1] === p) return s;
+      // If navigating to wallet, reset the stack
+      if (p === "wallet") return ["wallet"];
+      return [...s, p];
+    });
+  }
+  function goBack() {
+    setPageStack(s => s.length > 1 ? s.slice(0, -1) : ["wallet"]);
+  }
+  // Wire browser/device back gesture
+  useEffect(() => {
+    const onPop = () => { goBack(); };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  // goBack is defined in render scope — stable enough via closure
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   function handleDefiTab(tab: string) { setDefiTab(tab); }
+
+  // Keyboard shortcuts (skip when typing in an input/textarea)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      switch (e.key.toLowerCase()) {
+        case "w": navigate("wallet"); break;
+        case "p": navigate("p2p"); break;
+        case "d": navigate("defi"); break;
+        case "a": navigate("ai"); break;
+        case "s": setSettingsOpen(o => !o); break;
+        case "h": {
+          // toggle balance hide via walletStore
+          const { toggleHideBalances } = useWalletStore.getState() as { toggleHideBalances?: () => void };
+          toggleHideBalances?.();
+          break;
+        }
+        case "1": if (e.metaKey) navigate("wallet"); break;
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pageVariants = {
+    initial:  { opacity: 0, y: 14, scale: 0.988, filter: "blur(4px)" },
+    animate:  { opacity: 1, y: 0,  scale: 1,     filter: "blur(0px)",
+                transition: { type: "spring", stiffness: 340, damping: 28, mass: 0.9 } },
+    exit:     { opacity: 0, y: -8, scale: 0.994, filter: "blur(2px)",
+                transition: { duration: 0.15, ease: [0.4, 0, 1, 1] } },
+  };
 
   return (
     <ErrorBoundary>
     {!countryConfirmed && <CountryOnboarding />}
     <div className="flex flex-col h-screen overflow-hidden" style={{ background:"var(--bg)" }}>
 
-      <TopNav
-        theme={theme}
-        onToggleTheme={() => setTheme(t => t === "dark" ? "light" : "dark")}
-        activePage={activePage}
-        onNavigate={navigate}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onOpenNotifications={() => setNotifOpen(true)}
-        notifCount={notifCount}
-      />
-
-      <div className="flex-1 overflow-hidden">
-
-        {activePage === "defi" && (
-          <div className="h-full overflow-auto page-enter" style={{ background:"var(--bg)" }}>
-            <DeFiPage initialTab={defiTab} />
-          </div>
-        )}
-
-        {activePage === "p2p" && (
-          <div className="h-full overflow-hidden page-enter" style={{ background:"var(--bg)" }}>
-            <P2PPage />
-          </div>
-        )}
-
-        {!["defi","p2p"].includes(activePage) && (
-          <div className="h-full overflow-auto page-enter" style={{ background:"var(--bg)" }}>
-            {activePage === "wallet"      && <WalletPage onNavigate={navigate} onDefiTab={handleDefiTab} />}
-            {activePage === "portfolio"   && <PortfolioPage />}
-            {activePage === "ai"          && <AIAgentPage />}
-            {activePage === "subaccounts" && <SubaccountsPage />}
-            {activePage === "referrals"   && <ReferralsPage />}
-          </div>
-        )}
+      {/* Ambient liquid light blobs — animated so glass appears to flow */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
+        <div className="lg-blob-1" style={{ position:"absolute", top:"-10%", left:"-10%", width:560, height:560, borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(99,150,246,0.62) 0%, rgba(99,150,246,0.12) 55%, transparent 75%)",
+          filter:"blur(70px)" }} />
+        <div className="lg-blob-2" style={{ position:"absolute", top:"25%", right:"-12%", width:480, height:480, borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(167,139,250,0.55) 0%, rgba(167,139,250,0.10) 55%, transparent 75%)",
+          filter:"blur(65px)" }} />
+        <div className="lg-blob-3" style={{ position:"absolute", bottom:"-8%", left:"5%", width:440, height:440, borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(251,146,60,0.46) 0%, rgba(251,191,36,0.12) 55%, transparent 75%)",
+          filter:"blur(72px)" }} />
+        <div className="lg-blob-4" style={{ position:"absolute", top:"45%", left:"35%", width:360, height:360, borderRadius:"50%",
+          background:"radial-gradient(circle, rgba(125,211,252,0.34) 0%, transparent 70%)",
+          filter:"blur(60px)", transform:"translate(-50%,-50%)" }} />
       </div>
 
-      <BottomTabBar active={activePage} onNavigate={navigate} />
+      <div className="relative flex flex-col h-screen overflow-hidden" style={{ zIndex: 1 }}>
+        <TopNav
+          theme={theme}
+          onToggleTheme={() => {}}
+          activePage={activePage}
+          onNavigate={navigate}
+          onBack={canGoBack ? goBack : undefined}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenNotifications={() => setNotifOpen(true)}
+          notifCount={notifCount}
+        />
 
-      {settingsOpen && <SettingsModal    onClose={() => setSettingsOpen(false)} />}
-      {notifOpen    && <NotificationsPanel onClose={() => setNotifOpen(false)} />}
+        <div className="flex-1 overflow-hidden relative">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activePage}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="absolute inset-0 overflow-auto"
+            >
+              {activePage === "defi"        && <DeFiPage initialTab={defiTab} />}
+              {activePage === "p2p"         && <P2PPage onVaultDashboard={() => navigate("vault")} />}
+              {activePage === "wallet"      && <WalletPage onNavigate={navigate} onDefiTab={handleDefiTab} />}
+              {activePage === "portfolio"   && <PortfolioPage />}
+              {activePage === "ai"          && <AIAgentPage />}
+              {activePage === "subaccounts" && <SubaccountsPage />}
+              {activePage === "referrals"   && <ReferralsPage />}
+              {activePage === "vault"       && <VaultDashboard onNavigate={navigate} />}
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
-      <FloatingElement activePage={activePage} onNavigate={navigate} />
-      <SignalBadge />
+        {settingsOpen && <SettingsModal    onClose={() => setSettingsOpen(false)} />}
+        {notifOpen    && <NotificationsPanel onClose={() => setNotifOpen(false)} />}
+
+        <FloatingElement activePage={activePage} onNavigate={navigate} />
+        <SignalBadge />
+      </div>
     </div>
     </ErrorBoundary>
   );

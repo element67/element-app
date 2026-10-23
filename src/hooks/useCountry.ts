@@ -116,13 +116,13 @@ export function useCountry() {
   const countryMeta = COUNTRIES.find(c => c.code === userCountry);
 
   const info: CountryInfo = {
-    code:           userCountry,
+    code:           userCountry || "NG",
     name:           fiatConfig?.countryName ?? countryMeta?.name ?? userCountry,
     currency:       fiatConfig?.currency    ?? countryMeta?.currency ?? "USD",
     symbol:         fiatConfig?.symbol      ?? countryMeta?.currencySymbol ?? "$",
     decimals:       fiatConfig?.decimals    ?? 2,
     fiatConfig,
-    flagUrl:        `https://flagcdn.com/w40/${userCountry.toLowerCase()}.png`,
+    flagUrl:        `https://flagcdn.com/w40/${(userCountry || "NG").toLowerCase()}.png`,
     hasFiatAccount: !!fiatConfig,
   };
 

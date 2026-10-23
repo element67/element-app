@@ -1,0 +1,214 @@
+{
+  "accounts": [
+    {
+      "accountNumber": "057174170",
+      "walletId": "test_wallet_123",
+      "displayName": "Tunde B.",
+      "currency": "NGN",
+      "createdAt": 1792656024137
+    },
+    {
+      "accountNumber": "693557364",
+      "walletId": "a66e76b18b142225039bb2dbbc2f6fdd",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792656298451
+    },
+    {
+      "accountNumber": "776623744",
+      "walletId": "15ace071b5f9dff7f2aefc65c73857c1",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792659450769
+    },
+    {
+      "accountNumber": "698730501",
+      "walletId": "test-wallet-123",
+      "displayName": "Test User",
+      "currency": "NGN",
+      "createdAt": 1792659633662
+    },
+    {
+      "accountNumber": "987754119",
+      "walletId": "9372cbb35da74e663cc708a3432bd261",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792662989444
+    },
+    {
+      "accountNumber": "605419598",
+      "walletId": "496dd9701111853ca5f2967d8825325e",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792668504968
+    },
+    {
+      "accountNumber": "518335047",
+      "walletId": "2d7dcb48081213a23a0431ec4842cfec",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792671145299
+    },
+    {
+      "accountNumber": "995742377",
+      "walletId": "b0b0f6160517df01c4485f0828d85c85",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792674210635
+    },
+    {
+      "accountNumber": "351383415",
+      "walletId": "315ef518aaadac4b51470b5bcae74c84",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792695874967
+    },
+    {
+      "accountNumber": "394834724",
+      "walletId": "fc0dc45dd8c2db445bfa29e60d79f0f3",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792699031280
+    },
+    {
+      "accountNumber": "809560012",
+      "walletId": "a5eeca7e44aa4012eae01b0743a68c55",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792703513390
+    },
+    {
+      "accountNumber": "116228652",
+      "walletId": "bbbaab8f662996991a46f8bcea1a7366",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792736939307
+    },
+    {
+      "accountNumber": "551583386",
+      "walletId": "92be2ab1959cf792d1fba420e50c45c6",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792739543190
+    },
+    {
+      "accountNumber": "513970598",
+      "walletId": "3087acdfabe4ea61175040e48a290c6e",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792740773497
+    },
+    {
+      "accountNumber": "692915727",
+      "walletId": "97ad25fe079a6e6ed9242317ba202038",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792745038354
+    },
+    {
+      "accountNumber": "653068017",
+      "walletId": "d6c71c09b9376be742b695078461bf7f",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792754570510
+    },
+    {
+      "accountNumber": "459107872",
+      "walletId": "746ca5493044a01cdbb7003db955c82e",
+      "displayName": "FinanceX User",
+      "currency": "NGN",
+      "createdAt": 1792760277045
+    },
+    {
+      "accountNumber": "012345678",
+      "walletId": "8b1e747f295be5c388f5c50a92b11a47",
+      "displayName": "Test User",
+      "currency": "NGN",
+      "createdAt": 1792760587401
+    },
+    {
+      "accountNumber": "890790183",
+      "walletId": "3db02f1911100ed6f8e8d10abdffaf21",
+      "displayName": "Recipient",
+      "currency": "NGN",
+      "createdAt": 1792760592517
+    },
+    {
+      "accountNumber": "685730961",
+      "walletId": "10a5916f49f84c6e8c50b365245ccb7c",
+      "displayName": "RushPay User",
+      "currency": "NGN",
+      "createdAt": 1792766597524
+    },
+    {
+      "accountNumber": "985696290",
+      "walletId": "0d6b4a2f9734b67a556625bd56abc678",
+      "displayName": "RushPay User",
+      "currency": "NGN",
+      "createdAt": 1792766603273
+    },
+    {
+      "accountNumber": "651728069",
+      "walletId": "58a04c54475dd077bcc335be5092d088",
+      "displayName": "RushPay User",
+      "currency": "NGN",
+      "createdAt": 1792776795876
+    }
+  ],
+  "ledger": {
+    "a66e76b18b142225039bb2dbbc2f6fdd": {
+      "NGN": 45000
+    },
+    "15ace071b5f9dff7f2aefc65c73857c1": {
+      "NGN": 45000
+    },
+    "9372cbb35da74e663cc708a3432bd261": {
+      "NGN": 45000
+    },
+    "496dd9701111853ca5f2967d8825325e": {
+      "NGN": 45000
+    },
+    "2d7dcb48081213a23a0431ec4842cfec": {
+      "NGN": 45000
+    },
+    "b0b0f6160517df01c4485f0828d85c85": {
+      "NGN": 45000
+    },
+    "315ef518aaadac4b51470b5bcae74c84": {
+      "NGN": 45000
+    },
+    "fc0dc45dd8c2db445bfa29e60d79f0f3": {
+      "NGN": 45000
+    },
+    "a5eeca7e44aa4012eae01b0743a68c55": {
+      "NGN": 45000
+    },
+    "bbbaab8f662996991a46f8bcea1a7366": {
+      "NGN": 45000
+    },
+    "92be2ab1959cf792d1fba420e50c45c6": {
+      "NGN": 45000
+    },
+    "3087acdfabe4ea61175040e48a290c6e": {
+      "NGN": 45000
+    },
+    "97ad25fe079a6e6ed9242317ba202038": {
+      "NGN": 45000
+    },
+    "d6c71c09b9376be742b695078461bf7f": {
+      "NGN": 45000
+    },
+    "746ca5493044a01cdbb7003db955c82e": {
+      "NGN": 45000
+    },
+    "10a5916f49f84c6e8c50b365245ccb7c": {
+      "NGN": 45000
+    },
+    "0d6b4a2f9734b67a556625bd56abc678": {
+      "NGN": 45000
+    },
+    "58a04c54475dd077bcc335be5092d088": {
+      "NGN": 45000
+    }
+  }
+}

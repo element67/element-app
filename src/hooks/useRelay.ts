@@ -170,24 +170,37 @@ interface UseChainsResult {
   error: string | null;
 }
 
+// Module-level cache — shared across ALL hook instances so only ONE network
+// request fires regardless of how many components call useRelayChains().
+let _chainsCache: RelayChain[] | null = null;
+let _chainsInflight: Promise<RelayChain[]> | null = null;
+
+function fetchChainsOnce(): Promise<RelayChain[]> {
+  if (_chainsCache) return Promise.resolve(_chainsCache);
+  if (_chainsInflight) return _chainsInflight;
+  _chainsInflight = fetch(`${RELAY_API}/chains`)
+    .then(r => r.json() as Promise<{ chains: RelayChain[] }>)
+    .then(json => {
+      _chainsCache = (json.chains ?? []).filter(c => !c.disabled && !c.blockProductionLagging);
+      return _chainsCache;
+    })
+    .finally(() => { _chainsInflight = null; });
+  return _chainsInflight;
+}
+
 export function useRelayChains(): UseChainsResult {
-  const [chains, setChains]   = useState<RelayChain[]>([]);
+  const [chains, setChains]   = useState<RelayChain[]>(_chainsCache ?? []);
   const [error, setError]     = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(_chainsCache === null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${RELAY_API}/chains`)
-      .then(r => r.json() as Promise<{ chains: RelayChain[] }>)
-      .then(json => {
-        if (!cancelled) {
-          setChains((json.chains ?? []).filter(c => !c.disabled && !c.blockProductionLagging));
-        }
-      })
+    // Use Promise.resolve() so setState never fires synchronously inside the effect.
+    Promise.resolve(_chainsCache ? Promise.resolve(_chainsCache) : fetchChainsOnce())
+      .then(c => { if (!cancelled) { setChains(c); setLoading(false); } })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load chains");
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
+        if (!cancelled) { setError(e instanceof Error ? e.message : "Failed to load chains"); setLoading(false); }
+      });
     return () => { cancelled = true; };
   }, []);
 

@@ -9,7 +9,7 @@
  * 3. Also shows searchable list of all 195 supported countries
  * 4. On confirm → sets country in walletStore + fiatStore, marks onboarded
  */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Search, MapPin, ChevronRight, Globe } from "lucide-react";
 import { useCountry, detectCountryCode } from "@/hooks/useCountry";
 import { COUNTRIES } from "@/store/marketplaceStore";
@@ -46,7 +46,7 @@ export function CountryOnboarding({ onDone = () => {} }: Props) {
   function handleConfirm() {
     if (!selected) return;
     setCountry(selected);
-    localStorage.setItem("financex_onboarded", "1");
+    localStorage.setItem("rushpay_onboarded", "1");
     onDone();
   }
 
@@ -199,7 +199,7 @@ export function CountryOnboarding({ onDone = () => {} }: Props) {
             <ChevronRight size={16} />
           </button>
           <button
-            onClick={() => { setCountry("NG"); localStorage.setItem("financex_onboarded","1"); onDone(); }}
+            onClick={() => { setCountry("NG"); localStorage.setItem("rushpay_onboarded","1"); onDone(); }}
             className="w-full mt-2 py-2.5 text-sm"
             style={{ color: "var(--subtle)" }}
           >

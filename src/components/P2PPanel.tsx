@@ -3,9 +3,8 @@
  * Full crypto↔fiat marketplace: escrow state machine, 28 fiat currencies,
  * 30+ payment methods, live FX rates, merchant rankings.
  */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useAccount } from "wagmi";
-import { ConnectKitButton } from "connectkit";
 import {
   Search, Shield, Zap, Clock, CheckCircle2, AlertTriangle,
   X, Bell, Lock, TrendingUp, Star, Plus,
@@ -44,7 +43,7 @@ const STATUS_CFG: Record<P2POrderStatus, { label: string; color: string; bg: str
   released:   { label: "Released",   color: "#4ade80", bg: "rgba(74,222,128,0.1)"   },
   completed:  { label: "Completed",  color: "#4ade80", bg: "rgba(74,222,128,0.12)"  },
   cancelled:  { label: "Cancelled",  color: "#f87171", bg: "rgba(248,113,113,0.08)" },
-  expired:    { label: "Expired",    color: "#94a3b8", bg: "rgba(148,163,184,0.08)" },
+  expired:    { label: "Expired",    color: "#94a3b8", bg: "rgba(148,163,184,0.12)" },
   disputed:   { label: "Disputed",   color: "#fb923c", bg: "rgba(251,146,60,0.1)"   },
 };
 
@@ -170,13 +169,15 @@ function OrderModal({ ad, merchantMap, nowMs, onClose }: {
   const rangeErr = fiatNum > 0 && (fiatNum < ad.minFiat || fiatNum > ad.maxFiat)
     ? `${fmtFiat(ad.minFiat, ad.fiatCurrency)} – ${fmtFiat(ad.maxFiat, ad.fiatCurrency)}`
     : "";
-  const isValid = fiatNum >= ad.minFiat && fiatNum <= ad.maxFiat && agreed && !!address;
+  // Use native wallet ID from localStorage as the user identifier
+  const nativeWalletId = typeof localStorage !== "undefined" ? (localStorage.getItem("rushpay-wallet-id") ?? address ?? "native-user") : (address ?? "native-user");
+  const isValid = fiatNum >= ad.minFiat && fiatNum <= ad.maxFiat && agreed;
 
   function handleConfirm() {
-    if (!address || !isValid) return;
+    if (!isValid) return;
     setStep("pending");
     setTimeout(() => {
-      createTrade(ad.id, cryptoAmt, selectedMethod.id, address);
+      createTrade(ad.id, cryptoAmt, selectedMethod.id, nativeWalletId);
       // If buying crypto: lock seller's escrow (debit USDC as collateral)
       // If selling crypto: debit the asset from wallet into escrow
       if (ad.side === "sell") {
@@ -304,15 +305,11 @@ function OrderModal({ ad, merchantMap, nowMs, onClose }: {
                 I agree to P2P trading terms and will complete payment within the time limit
               </span>
             </label>
-            {!address
-              ? <div className="flex justify-center pt-1"><ConnectKitButton /></div>
-              : (
-                <button onClick={handleConfirm} disabled={!isValid}
-                  className="w-full py-3 rounded-xl text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-40"
-                  style={{ background: ad.side === "sell" ? "#22c55e" : "#f87171", color: "#000" }}>
-                  Confirm {ad.side === "sell" ? "Buy" : "Sell"} Order
-                </button>
-              )}
+            <button onClick={handleConfirm} disabled={!isValid}
+              className="w-full py-3 rounded-xl text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-40"
+              style={{ background: ad.side === "sell" ? "#22c55e" : "#f87171", color: "#000" }}>
+              Confirm {ad.side === "sell" ? "Buy" : "Sell"} Order
+            </button>
           </div>
         )}
 
@@ -462,7 +459,18 @@ function TradeCard({ trade, nowMs, onMarkPaid, onCancel, onRelease, onDispute }:
 }
 
 // ─── Main component ────────────────────────────────────────────────────────────
-export function P2PPanel() {
+interface P2PPanelProps {
+  /** Controlled from parent — "buy" = user wants to buy crypto, "sell" = sell */
+  side?: "buy" | "sell";
+  /** Controlled asset ticker e.g. "USDC" */
+  asset?: string;
+  /** Controlled fiat currency code e.g. "NGN" */
+  fiat?: string;
+  /** Search string from parent */
+  searchQ?: string;
+}
+
+export function P2PPanel({ side, asset, fiat, searchQ: externalSearch }: P2PPanelProps) {
   const { address } = useAccount();
   const tickers = usePriceStore(s => s.tickers);
 
@@ -490,6 +498,16 @@ export function P2PPanel() {
   const [showNotifs, setShowNotifs]     = useState(false);
   const [nowMs, setNowMs]               = useState(() => Date.now());
 
+  // Sync controlled props → store (use ref to avoid re-running on every render)
+  const prevSide  = useRef<string | undefined>(undefined);
+  const prevAsset = useRef<string | undefined>(undefined);
+  const prevFiat  = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (side  !== undefined && side  !== prevSide.current)  { setSelectedSide(side === "buy" ? "sell" : "buy"); prevSide.current  = side;  }
+    if (asset !== undefined && asset !== prevAsset.current) { setSelectedAsset(asset as P2PAsset);              prevAsset.current = asset; }
+    if (fiat  !== undefined && fiat  !== prevFiat.current)  { setSelectedFiat(fiat);                            prevFiat.current  = fiat;  }
+  }, [side, asset, fiat, setSelectedSide, setSelectedAsset, setSelectedFiat]);
+
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
 
   // Timer tick for countdowns + fmtAgo
@@ -508,13 +526,14 @@ export function P2PPanel() {
       if (ad.asset !== selectedAsset) return false;
       if (ad.fiatCurrency !== selectedFiat) return false;
       if (filterMethod !== "all" && !ad.payMethods.find(m => m.id === filterMethod)) return false;
-      if (search) {
+      const effectiveSearch = externalSearch ?? search;
+      if (effectiveSearch) {
         const m = merchants[ad.merchantId];
-        if (!m?.name.toLowerCase().includes(search.toLowerCase())) return false;
+        if (!m?.name.toLowerCase().includes(effectiveSearch.toLowerCase())) return false;
       }
       return true;
     }).sort((a, b) => b.score - a.score);
-  }, [ads, merchants, selectedSide, selectedAsset, selectedFiat, filterMethod, search]);
+  }, [ads, merchants, selectedSide, selectedAsset, selectedFiat, filterMethod, search, externalSearch]);
 
   // My trades
   const myTrades = useMemo(() =>
@@ -534,9 +553,13 @@ export function P2PPanel() {
   const ASSETS: P2PAsset[] = ["USDT", "USDC", "BTC", "ETH", "SOL", "BNB", "XRP"];
   const TOP_FIATS = ["NGN", "USD", "GBP", "EUR", "GHS", "KES", "ZAR", "INR", "AED", "BRL"];
 
+  // Controlled mode: side/asset/fiat all come from parent
+  const isControlled = side !== undefined;
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Top bar */}
+      {/* Top bar — only shown in standalone mode (not controlled by parent) */}
+      {!isControlled && (
       <div className="flex items-center justify-between px-4 py-2.5 border-b shrink-0"
         style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
         <div className="flex items-center gap-2 flex-wrap">
@@ -585,6 +608,7 @@ export function P2PPanel() {
           </button>
         </div>
       </div>
+      )}
 
       {/* Notifications dropdown */}
       {showNotifs && (
@@ -627,33 +651,37 @@ export function P2PPanel() {
       {/* ── Offers ─────────────────────────────────────────────────────────── */}
       {activeTab === "offers" && (
         <div className="flex flex-col flex-1 min-h-0">
-          {/* Currency + filters */}
+          {/* Currency + filters — fiat chips hidden in controlled mode (parent has dropdown) */}
           <div className="flex items-center gap-2 px-4 py-2 border-b flex-wrap shrink-0"
             style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-            <div className="flex gap-1 flex-wrap">
-              {TOP_FIATS.map(code => {
-                const f = FIAT_CURRENCIES.find(fc => fc.code === code);
-                return (
-                  <button key={code} onClick={() => setSelectedFiat(code)}
-                    className="px-2 py-0.5 rounded text-xs font-semibold transition-colors"
-                    style={{
-                      background: selectedFiat === code ? "rgba(99,102,241,0.15)" : "var(--surface-high)",
-                      color: selectedFiat === code ? "var(--accent)" : "var(--ink-dim)",
-                      border: `1px solid ${selectedFiat === code ? "var(--accent)" : "var(--border)"}`,
-                    }}>
-                    {f?.flag} {code}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ml-auto"
-              style={{ background: "var(--surface-high)", border: "1px solid var(--border)" }}>
-              <Search size={11} style={{ color: "var(--ink-dim)" }} />
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search merchant…"
-                className="w-28 bg-transparent text-xs outline-none"
-                style={{ color: "var(--ink)" }} />
-            </div>
+            {!isControlled && (
+              <div className="flex gap-1 flex-wrap">
+                {TOP_FIATS.map(code => {
+                  const f = FIAT_CURRENCIES.find(fc => fc.code === code);
+                  return (
+                    <button key={code} onClick={() => setSelectedFiat(code)}
+                      className="px-2 py-0.5 rounded text-xs font-semibold transition-colors"
+                      style={{
+                        background: selectedFiat === code ? "rgba(99,102,241,0.15)" : "var(--surface-high)",
+                        color: selectedFiat === code ? "var(--accent)" : "var(--ink-dim)",
+                        border: `1px solid ${selectedFiat === code ? "var(--accent)" : "var(--border)"}`,
+                      }}>
+                      {f?.flag} {code}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {!isControlled && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ml-auto"
+                style={{ background: "var(--surface-high)", border: "1px solid var(--border)" }}>
+                <Search size={11} style={{ color: "var(--ink-dim)" }} />
+                <input value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Search merchant…"
+                  className="w-28 bg-transparent text-xs outline-none"
+                  style={{ color: "var(--ink)" }} />
+              </div>
+            )}
             <select value={filterMethod} onChange={e => setFilterMethod(e.target.value)}
               className="px-2 py-1.5 rounded-lg text-xs outline-none"
               style={{ background: "var(--surface-high)", color: "var(--ink)", border: "1px solid var(--border)" }}>
@@ -699,12 +727,7 @@ export function P2PPanel() {
       {/* ── My Orders ──────────────────────────────────────────────────────── */}
       {activeTab === "myOrders" && (
         <div className="flex-1 overflow-y-auto p-4">
-          {!address ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <p className="text-sm" style={{ color: "var(--ink-dim)" }}>Connect wallet to view orders</p>
-              <ConnectKitButton />
-            </div>
-          ) : (
+          {(true) && (
             <>
               {activeTrades.length > 0 && (
                 <div className="mb-5">
@@ -749,6 +772,7 @@ export function P2PPanel() {
         </div>
       )}
 
+
       {/* ── Post Ad ──────────────────────────────────────────────────────── */}
       {activeTab === "post" && (
         <div className="flex-1 overflow-y-auto p-4">
@@ -762,15 +786,10 @@ export function P2PPanel() {
                   Merchant account with Level 1 KYC and a security deposit are required to post ads.
                 </p>
               </div>
-              {!address
-                ? <div className="flex flex-col items-center gap-3 py-2">
-                    <p className="text-xs" style={{ color: "var(--ink-dim)" }}>Connect wallet to continue</p>
-                    <ConnectKitButton />
-                  </div>
-                : <button className="w-full py-2.5 rounded-xl text-xs font-bold"
-                    style={{ background: "var(--accent)", color: "#fff" }}>
-                    Start KYC Verification →
-                  </button>}
+              <button className="w-full py-2.5 rounded-xl text-xs font-bold"
+                style={{ background: "var(--accent)", color: "#fff" }}>
+                Start KYC Verification →
+              </button>
             </div>
           </div>
         </div>
@@ -781,6 +800,8 @@ export function P2PPanel() {
         <OrderModal ad={selectedAd} merchantMap={merchants} nowMs={nowMs}
           onClose={() => { setSelectedAd(null); setActiveTab("myOrders"); }} />
       )}
+
+
     </div>
   );
 }

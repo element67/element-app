@@ -69,48 +69,36 @@ export function P2PRateBar() {
   }
 
   return (
-    <div className="rounded-xl p-3" style={{ background: "var(--surface-high)", border: "1px solid var(--border)" }}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--subtle)" }}>
-          P2P Rates · {fiat}
+    <div className="rounded-xl px-3 py-2" style={{ background: "var(--surface-high)", border: "1px solid var(--border)" }}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "var(--subtle)" }}>
+          P2P · {fiat}
         </span>
-        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
+        <span className="text-[8px] px-1.5 py-0.5 rounded-full font-semibold"
           style={{ background: "rgba(74,222,128,0.12)", color: "var(--buy)" }}>
-          Live Offers
+          Live
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5">
-        {rates.map(r => (
-          <div key={r.asset} className="rounded-lg p-2"
-            style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-            <div className="text-[10px] font-bold mb-1" style={{ color: "var(--ink)" }}>
-              {r.asset}/{r.fiat}
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <div className="text-[9px] uppercase" style={{ color: "var(--subtle)" }}>Buy</div>
-                <div className="text-[10px] font-bold mono" style={{ color: "var(--buy)" }}>
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        {rates.map((r, i) => (
+          <div key={r.asset} className="flex items-center gap-2 flex-shrink-0">
+            {i > 0 && <div className="w-px h-6 flex-shrink-0" style={{ background: "var(--border)" }} />}
+            <div>
+              <div className="text-[9px] font-semibold" style={{ color: "var(--ink)" }}>{r.asset}</div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[9px]" style={{ color: "var(--subtle)" }}>B</span>
+                <span className="text-[9px] font-bold" style={{ color: "var(--buy)" }}>
                   {r.bestBuy !== null ? `${r.symbol}${fmtRate(r.bestBuy, r.asset)}` : "—"}
-                </div>
-              </div>
-              <div className="w-px" style={{ background: "var(--border)" }} />
-              <div className="flex-1">
-                <div className="text-[9px] uppercase" style={{ color: "var(--subtle)" }}>Sell</div>
-                <div className="text-[10px] font-bold mono" style={{ color: "var(--sell)" }}>
+                </span>
+                <span className="text-[9px]" style={{ color: "var(--subtle)" }}>S</span>
+                <span className="text-[9px] font-bold" style={{ color: "var(--sell)" }}>
                   {r.bestSell !== null ? `${r.symbol}${fmtRate(r.bestSell, r.asset)}` : "—"}
-                </div>
+                </span>
               </div>
-            </div>
-            <div className="text-[9px] mt-1" style={{ color: "var(--subtle)" }}>
-              {r.offers} active offer{r.offers !== 1 ? "s" : ""}
             </div>
           </div>
         ))}
-      </div>
-
-      <div className="text-[9px] mt-1.5 text-center" style={{ color: "var(--subtle)" }}>
-        P2P rates from live merchant offers · may differ from market price
       </div>
     </div>
   );
