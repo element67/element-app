@@ -1,5 +1,5 @@
 /**
- * PERPX — Circle Nanopayments frontend service
+ * RushPay — Circle Nanopayments frontend service
  *
  * Provides a unified payment interface that:
  * 1. Checks if the backend Nanopayments service is configured

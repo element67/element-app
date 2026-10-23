@@ -14,10 +14,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 const TIERS = [
-  { name: "Bronze",   minVol: 0,          rebate: "5%",  discount: "3%",  color: "#cd7f32" },
-  { name: "Silver",   minVol: 100_000,     rebate: "8%",  discount: "5%",  color: "#9ca3af" },
-  { name: "Gold",     minVol: 500_000,     rebate: "12%", discount: "8%",  color: "#f59e0b" },
-  { name: "Platinum", minVol: 2_000_000,   rebate: "20%", discount: "12%", color: "#3b82f6" },
+  { name: "Bronze",   minVol: 0,       rebate: "2%",  discount: "1%",  color: "#cd7f32" },
+  { name: "Silver",   minVol: 1_000,   rebate: "4%",  discount: "2%",  color: "#9ca3af" },
+  { name: "Gold",     minVol: 5_000,   rebate: "6%",  discount: "3%",  color: "#f59e0b" },
+  { name: "Platinum", minVol: 20_000,  rebate: "10%", discount: "5%",  color: "#3b82f6" },
 ];
 
 function fmt(n: number) {
@@ -37,7 +37,7 @@ export function ReferralsPage() {
   const address = nw.addresses?.["Ethereum"];
   const [copied, setCopied] = useState(false);
 
-  const code = address ? `FX-${address.slice(2, 8).toUpperCase()}` : "FX-DEMO01";
+  const code = address ? `RP-${address.slice(2, 8).toUpperCase()}` : "RP-DEMO01";
   const refLink = `https://rushpay.app?ref=${code}`;
 
   function copyLink() {
@@ -60,8 +60,8 @@ export function ReferralsPage() {
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: "Total Earned",     value: "$199.20",  icon: <DollarSign size={14} />, color: "var(--green)" },
-          { label: "Referred Traders", value: "3",        icon: <Users size={14} />,      color: "var(--accent)" },
-          { label: "Referred Volume",  value: "$66.4K",   icon: <TrendingUp size={14} />, color: "var(--ink)" },
+          { label: "Referred Users", value: "3",        icon: <Users size={14} />,      color: "var(--accent)" },
+          { label: "Referred Swaps",  value: "$66.4K",   icon: <TrendingUp size={14} />, color: "var(--ink)" },
         ].map(s => (
           <div key={s.label} className="rounded p-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
             <div className="flex items-center gap-1.5 mb-1" style={{ color: s.color }}>{s.icon}</div>
@@ -100,7 +100,7 @@ export function ReferralsPage() {
           <table className="w-full text-xs">
             <thead>
               <tr style={{ color: "var(--subtle)" }}>
-                {["Tier", "Min Volume (30d)", "Your Rebate", "Referee Discount"].map(h => (
+                {["Tier", "Min Swap (30d)", "Your Reward", "Referee Discount"].map(h => (
                   <th key={h} className="text-left pb-2 font-medium pr-4">{h}</th>
                 ))}
               </tr>
@@ -139,7 +139,7 @@ export function ReferralsPage() {
       </Section>
 
       {/* Referred traders */}
-      <Section title={`Referred Traders (${REFERRED.length})`}>
+      <Section title={`Referred Users (${REFERRED.length})`}>
         {REFERRED.length === 0 ? (
           <div className="text-center text-xs py-3" style={{ color: "var(--subtle)" }}>No referrals yet — share your link to get started</div>
         ) : (

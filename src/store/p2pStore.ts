@@ -1,5 +1,5 @@
 /**
- * PERPX Global P2P Store — production-grade state machine
+ * RushPay Global P2P Store — production-grade state machine
  *
  * Architecture:
  *  - Zustand with subscribeWithSelector for sub-ms granular updates
@@ -10,7 +10,7 @@
  *  - Crypto prices piped in from priceStore tickers
  *
  * External integrations required before real-money use:
- *  - On-chain escrow: PerpVault.depositToSubaccount() → user wallet signature
+ *  - On-chain escrow: EscrowVault.deposit() → user wallet signature
  *  - Payment verification: Flutterwave / Paystack / Stripe webhook
  *  - KYC: Persona / Sumsub API key
  */

@@ -1,5 +1,5 @@
 /**
- * PERPX World-Class P2P Panel
+ * RushPay World-Class P2P Panel
  * Full crypto↔fiat marketplace: escrow state machine, 28 fiat currencies,
  * 30+ payment methods, live FX rates, merchant rankings.
  */

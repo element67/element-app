@@ -97,7 +97,7 @@ export default function App() {
   const canGoBack  = pageStack.length > 1;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notifOpen,    setNotifOpen]    = useState(false);
-  const [notifCount]                   = useState(3);
+  const notifCount = useWalletStore(s => s.unreadNotifications);
   const [defiTab,      setDefiTab]      = useState<string>("swap");
 
   const countryConfirmed = useWalletStore(s => s.countryConfirmed);

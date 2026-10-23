@@ -1,5 +1,5 @@
 /**
- * PERPX — Centralized Asset & Logo Registry
+ * RushPay — Centralized Asset & Logo Registry
  *
  * Single source of truth for ALL visual assets: crypto icons, chain logos,
  * country flags, bank logos, payment provider logos.

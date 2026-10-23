@@ -79,17 +79,9 @@ RushPay is a fintech super-app with a built-in self-custodial crypto wallet, P2P
 
 ---
 
-## Deployed Contracts (Arc Testnet) — legacy, not used in frontend
+## Deployed Contracts
 
-| Contract | Address |
-|---|---|
-| MockOracle | `0x8429098a03c01118504883aebd5fb6955e214d8b` |
-| PerpVault | `0x6e044e96806002fe6aae3fe138a711bc4b4e8cfb` |
-| PerpMarket | `0xb3661afe562ec4f96c0e28de979e845d1b3d4ca7` |
-| OrderBook | `0x7da561770d451b77a2794f559f01950535246687` |
-| FundingRateOracle | `0xabbbbfaccfaa1eac7b0d4e2e5d74349559e12631` |
-
-*(These remain deployed on-chain but are not referenced by the current frontend.)*
+None active. PerpDEX contracts (MockOracle, PerpVault, PerpMarket, OrderBook, FundingRateOracle) were deployed in a previous iteration and are permanently removed from this project. Those on-chain addresses are immutable and remain on Arc Testnet but are not referenced anywhere in the codebase.
 
 ---
 

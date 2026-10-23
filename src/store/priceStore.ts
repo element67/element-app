@@ -1,5 +1,5 @@
 /**
- * Lightweight price store — replaces perpStore for all non-trading screens.
+ * Lightweight price store — replaces legacyStore for all non-trading screens.
  * Fetches 24h ticker data from Binance via a CORS proxy, refreshes every 10s.
  * Exposes tickers keyed "BTC-USD", "ETH-USD" etc. for backward compatibility.
  */

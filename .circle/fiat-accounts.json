@@ -153,6 +153,13 @@
       "displayName": "RushPay User",
       "currency": "NGN",
       "createdAt": 1792776795876
+    },
+    {
+      "accountNumber": "682925738",
+      "walletId": "192e0c7918d84cc3fb27776b852242ea",
+      "displayName": "RushPay User",
+      "currency": "NGN",
+      "createdAt": 1792786754930
     }
   ],
   "ledger": {
@@ -208,6 +215,9 @@
       "NGN": 45000
     },
     "58a04c54475dd077bcc335be5092d088": {
+      "NGN": 45000
+    },
+    "192e0c7918d84cc3fb27776b852242ea": {
       "NGN": 45000
     }
   }

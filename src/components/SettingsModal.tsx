@@ -40,21 +40,30 @@ export function SettingsModal({ onClose }: Props) {
   const [fontSize, setFontSizeState] = useState<FontSize>(getFontSize);
   const [section, setSection] = useState<Section>("appearance");
 
+  // Load persisted settings
+  const _saved: Record<string, unknown> = (() => {
+    try { return JSON.parse(localStorage.getItem("rushpay-settings") ?? "{}") as Record<string, unknown>; }
+    catch { return {}; }
+  })();
+
+  const s = _saved;
   // DeFi prefs
-  const [slippageTol, setSlippageTol] = useState("0.5");
-  const [confirmTx, setConfirmTx] = useState(true);
-  const [soundOn, setSoundOn] = useState(false);
-  const [gasMode, setGasMode] = useState<"fast"|"standard"|"slow">("standard");
+  const [slippageTol, setSlippageTol] = useState<string>(typeof s.slippageTol === "string" ? s.slippageTol : "0.5");
+  const [confirmTx, setConfirmTx] = useState<boolean>(typeof s.confirmTx === "boolean" ? s.confirmTx : true);
+  const [soundOn, setSoundOn] = useState<boolean>(typeof s.soundOn === "boolean" ? s.soundOn : false);
+  const [gasMode, setGasMode] = useState<"fast"|"standard"|"slow">(
+    s.gasMode === "fast" || s.gasMode === "slow" ? s.gasMode : "standard"
+  );
 
   // Notifications
-  const [notifTx, setNotifTx] = useState(true);
-  const [notifPriceAlert, setNotifPriceAlert] = useState(true);
-  const [notifP2P, setNotifP2P] = useState(true);
-  const [notifSignals, setNotifSignals] = useState(false);
+  const [notifTx, setNotifTx] = useState<boolean>(typeof s.notifTx === "boolean" ? s.notifTx : true);
+  const [notifPriceAlert, setNotifPriceAlert] = useState<boolean>(typeof s.notifPriceAlert === "boolean" ? s.notifPriceAlert : true);
+  const [notifP2P, setNotifP2P] = useState<boolean>(typeof s.notifP2P === "boolean" ? s.notifP2P : true);
+  const [notifSignals, setNotifSignals] = useState<boolean>(typeof s.notifSignals === "boolean" ? s.notifSignals : false);
 
   // Security
-  const [autoLock, setAutoLock] = useState("1 hour");
-  const [requireSig, setRequireSig] = useState(true);
+  const [autoLock, setAutoLock] = useState<string>(typeof s.autoLock === "string" ? s.autoLock : "1 hour");
+  const [requireSig, setRequireSig] = useState<boolean>(typeof s.requireSig === "boolean" ? s.requireSig : true);
 
   function setTheme(t: "dark"|"light") {
     setThemeState(t);
@@ -66,6 +75,14 @@ export function SettingsModal({ onClose }: Props) {
   }
 
   function save() {
+    // Persist all settings to localStorage
+    try {
+      localStorage.setItem("rushpay-settings", JSON.stringify({
+        slippageTol, confirmTx, soundOn, gasMode,
+        notifTx, notifPriceAlert, notifP2P, notifSignals,
+        autoLock, requireSig,
+      }));
+    } catch { /* quota exceeded */ }
     toast.success("Settings saved");
     onClose();
   }

@@ -1,5 +1,5 @@
 /**
- * PERPX — Shared Asset Icon Components
+ * RushPay — Shared Asset Icon Components
  * Uses the centralized asset registry for all logos, flags, and provider icons.
  * Every icon has a graceful fallback and an accessible aria-label.
  */

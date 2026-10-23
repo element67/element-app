@@ -1,5 +1,5 @@
 /**
- * PERPX Global Marketplace Store — 195 Countries, All Crypto, Daily Payments
+ * RushPay Global Marketplace Store — 195 Countries, All Crypto, Daily Payments
  *
  * LIVE INTEGRATIONS:
  *  - Crypto prices:    Binance REST (via priceStore tickers)

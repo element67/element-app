@@ -1,5 +1,5 @@
 /**
- * PERPX Built-in Wallet Store
+ * RushPay Wallet Store
  *
  * Production requirements still needed:
  *  - Custodial crypto:  Circle developer-controlled wallets SDK
@@ -112,6 +112,10 @@ export interface WalletState {
 
   /** Remove an asset from the wallet (only if balance is zero) */
   removeAsset: (symbol: string) => void;
+
+  /** Sync unread notification count from NotificationsPanel */
+  unreadNotifications: number;
+  setUnreadNotifications: (count: number) => void;
 }
 
 // ── Seed balances (testnet / demo) ───────────────────────────────────────────
@@ -369,9 +373,12 @@ export const useWalletStore = create<WalletState>()(
           return { assets, totalUsd: recompute(assets, s._livePrices) };
         });
       },
+
+      unreadNotifications: 3,
+      setUnreadNotifications: (count) => set({ unreadNotifications: count }),
     }),
     {
-      name: "perpx-wallet-v2",
+      name: "rushpay-wallet-v2",
       partialize: s => ({
         assets:           s.assets,
         txHistory:        s.txHistory.slice(0, 100),
